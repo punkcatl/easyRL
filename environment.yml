@@ -1,0 +1,18 @@
+name: easyrl
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch
+  - pytorch-cuda=12.4
+  - numpy
+  - matplotlib
+  - pip
+  - pip:
+    - gymnasium
+    - highway-env
+    - tensorboard
+    - pytest

@@ -1,0 +1,7 @@
+torch>=2.0
+gymnasium>=0.29
+highway-env>=1.8
+matplotlib>=3.7
+numpy>=1.24
+tensorboard>=2.14
+pytest>=7.0

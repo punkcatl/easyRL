@@ -61,12 +61,14 @@ class DQNAgent:
         buffer_size: int,
         batch_size: int,
         hidden_dim: int = 128,
+        tau: float = 0.005,
     ):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.gamma = gamma
         self.epsilon = epsilon
         self.batch_size = batch_size
+        self.tau = tau
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -109,16 +111,18 @@ class DQNAgent:
             next_q_values = self.target_net(next_states_t).max(1, keepdim=True)[0]
             targets = rewards_t + self.gamma * next_q_values * (1 - dones_t)
 
-        loss = nn.MSELoss()(q_values, targets)
+        loss = nn.SmoothL1Loss()(q_values, targets)
 
         self.optimizer.zero_grad()
         loss.backward()
+        nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=10.0)
         self.optimizer.step()
 
-        return loss.item()
+        # Soft update target network
+        for param, target_param in zip(self.q_net.parameters(), self.target_net.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-    def update_target(self):
-        self.target_net.load_state_dict(self.q_net.state_dict())
+        return loss.item()
 
     def save(self, path: str):
         torch.save(self.q_net.state_dict(), path)

@@ -11,14 +11,18 @@ from algorithms.dqn.config import config
 from envs.highway_lane_keeping import make_lane_keeping_env
 from utils.logger import Logger
 from utils.plotting import plot_training_curves
+from utils.hud import patch_viewer_for_hud, update_hud
 
 
 def train():
     """Train DQN agent on highway-env lane keeping (discrete actions)."""
-    env = make_lane_keeping_env()
+    # render_mode="human" enables real-time visualization; set to None to disable for faster training
+    env = make_lane_keeping_env(render_mode="human")
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
     action_dim = env.action_space.n
+
+    patch_viewer_for_hud(env)
 
     agent = DQNAgent(
         state_dim=state_dim,
@@ -29,6 +33,7 @@ def train():
         buffer_size=config["buffer_size"],
         batch_size=config["batch_size"],
         hidden_dim=config["hidden_dim"],
+        tau=config["tau"],
     )
 
     results_dir = str(Path(__file__).resolve().parent / "results")
@@ -44,6 +49,8 @@ def train():
         done = False
         truncated = False
 
+        update_hud(episode + 1, n_episodes, epsilon, 0.0)
+
         while not (done or truncated):
             action = agent.select_action(state)
             obs, reward, done, truncated, _ = env.step(action)
@@ -52,14 +59,11 @@ def train():
             agent.learn()
             state = next_state
             total_reward += reward
+            update_hud(episode + 1, n_episodes, epsilon, total_reward)
 
         # Decay epsilon
         epsilon = max(config["epsilon_end"], epsilon * config["epsilon_decay"])
         agent.epsilon = epsilon
-
-        # Update target network
-        if (episode + 1) % config["target_update_freq"] == 0:
-            agent.update_target()
 
         # Log reward
         logger.log("episode_reward", total_reward, episode)

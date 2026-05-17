@@ -11,14 +11,18 @@ from algorithms.policy_gradient.config import config
 from envs.highway_lane_keeping import make_lane_keeping_env
 from utils.logger import Logger
 from utils.plotting import plot_training_curves
+from utils.hud import patch_viewer_for_hud, update_hud
 
 
 def train():
     """Train REINFORCE agent on highway-env lane keeping (discrete actions)."""
-    env = make_lane_keeping_env()
+    # render_mode="human" enables real-time visualization; set to None to disable for faster training
+    env = make_lane_keeping_env(render_mode="human")
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
     action_dim = env.action_space.n
+
+    patch_viewer_for_hud(env)
 
     agent = REINFORCEAgent(
         state_dim=state_dim,
@@ -40,12 +44,15 @@ def train():
         done = False
         truncated = False
 
+        update_hud(episode + 1, n_episodes, 0.0, 0.0)
+
         while not (done or truncated):
             action = agent.select_action(state)
             obs, reward, done, truncated, _ = env.step(action)
             agent.store_reward(reward)
             state = obs.flatten()
             total_reward += reward
+            update_hud(episode + 1, n_episodes, 0.0, total_reward)
 
         # Update policy at end of episode
         loss = agent.update()

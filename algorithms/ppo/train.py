@@ -10,14 +10,18 @@ import numpy as np
 from algorithms.ppo.agent import PPOAgent
 from algorithms.ppo.config import config
 from envs.highway_lane_keeping import make_continuous_lane_keeping_env
+from utils.hud import patch_viewer_for_hud, update_hud
 
 
 def train():
     """Train PPO agent on highway-env continuous lane keeping."""
-    env = make_continuous_lane_keeping_env()
+    # render_mode="human" enables real-time visualization; set to None to disable for faster training
+    env = make_continuous_lane_keeping_env(render_mode="human")
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
     action_dim = env.action_space.shape[0]
+
+    patch_viewer_for_hud(env)
 
     agent = PPOAgent(
         state_dim=state_dim,
@@ -43,6 +47,8 @@ def train():
         states, actions, rewards, log_probs, values, dones = [], [], [], [], [], []
         episode_reward = 0
 
+        update_hud(episode + 1, n_episodes, 0.0, 0.0)
+
         done = False
         while not done:
             action, log_prob, value = agent.select_action(state)
@@ -59,6 +65,7 @@ def train():
 
             state = next_state
             episode_reward += reward
+            update_hud(episode + 1, n_episodes, 0.0, episode_reward)
 
         # Bootstrap value for last state
         if done:

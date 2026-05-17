@@ -36,6 +36,7 @@ def train_and_evaluate_dqn(n_episodes: int = 300):
         buffer_size=dqn_config["buffer_size"],
         batch_size=dqn_config["batch_size"],
         hidden_dim=dqn_config["hidden_dim"],
+        tau=dqn_config["tau"],
     )
 
     log_dir = str(ROOT_DIR / "experiments" / "results" / "dqn")
@@ -61,9 +62,6 @@ def train_and_evaluate_dqn(n_episodes: int = 300):
 
         epsilon = max(dqn_config["epsilon_end"], epsilon * dqn_config["epsilon_decay"])
         agent.epsilon = epsilon
-
-        if (episode + 1) % dqn_config["target_update_freq"] == 0:
-            agent.update_target()
 
         logger.log("reward", total_reward, episode)
 

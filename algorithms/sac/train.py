@@ -10,14 +10,18 @@ import numpy as np
 from algorithms.sac.agent import SACAgent
 from algorithms.sac.config import config
 from envs.highway_lane_keeping import make_continuous_lane_keeping_env
+from utils.hud import patch_viewer_for_hud, update_hud
 
 
 def train():
     """Train SAC on highway-env continuous lane keeping."""
-    env = make_continuous_lane_keeping_env()
+    # render_mode="human" enables real-time visualization; set to None to disable for faster training
+    env = make_continuous_lane_keeping_env(render_mode="human")
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
     action_dim = env.action_space.shape[0]
+
+    patch_viewer_for_hud(env)
 
     agent = SACAgent(
         state_dim=state_dim,
@@ -45,6 +49,8 @@ def train():
         episode_reward = 0
         done = False
 
+        update_hud(episode + 1, n_episodes, 0.0, 0.0)
+
         while not done:
             if total_steps < config["start_steps"]:
                 action = env.action_space.sample()
@@ -63,6 +69,7 @@ def train():
             state = next_state
             episode_reward += reward
             total_steps += 1
+            update_hud(episode + 1, n_episodes, 0.0, episode_reward)
 
         rewards_history.append(episode_reward)
 

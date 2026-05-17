@@ -73,14 +73,14 @@ class REINFORCEAgent:
         # Normalize returns
         returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-        # Compute policy loss
-        loss = torch.tensor(0.0, dtype=torch.float32).to(self.device)
-        for log_prob, G in zip(self.log_probs, returns):
-            loss += -log_prob * G
+        # Compute policy loss (vectorized)
+        log_probs_t = torch.stack(self.log_probs)
+        loss = -(log_probs_t * returns).sum()
 
         # Backprop
         self.optimizer.zero_grad()
         loss.backward()
+        nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
         self.optimizer.step()
 
         # Clear episode data

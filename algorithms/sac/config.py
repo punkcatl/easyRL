@@ -1,5 +1,5 @@
 config = {
-    "n_episodes": 300,
+    "n_episodes": 500,
     "lr": 3e-4,
     "gamma": 0.99,
     "tau": 0.005,

@@ -36,6 +36,24 @@ class CliffWalkingEnv:
                             reward = -100
                     P[i * self.ncol + j][a] = [(1, next_state, reward, done)]
         return P
+
+    def reset(self):
+        self.x = 0
+        self.y = self.nrow - 1
+        return self.y * self.ncol + self.x
+
+    def step(self, action):
+        change = [[0, -1], [0, 1], [-1, 0], [1, 0]]
+        self.x = min(self.ncol - 1, max(0, self.x + change[action][0]))
+        self.y = min(self.nrow - 1, max(0, self.y + change[action][1]))
+        next_state = self.y * self.ncol + self.x
+        reward = -1
+        done = False
+        if self.y == self.nrow - 1 and self.x > 0:
+            done = True
+            if self.x != self.ncol - 1:
+                reward = -100
+        return next_state, reward, done
     
 
 class PolicyIteration:
@@ -92,27 +110,40 @@ class PolicyIteration:
             if old_pi == new_pi: break
     
 #now, 环境和策略迭代的代码已完成，现在编写一个方便观察的打印代码
-def print_agent(agent, action_meaning, disaster=[], end=[]):
+def print_agent(agent, env_or_meaning, action_meaning=None, disaster=[], end=[]):
+    if action_meaning is None:
+        # 旧的调用方式: print_agent(agent, action_meaning, disaster, end)
+        env = agent.env
+        action_meaning = env_or_meaning
+    else:
+        # 新的调用方式: print_agent(agent, env, action_meaning, disaster, end)
+        env = env_or_meaning
+
     print("状态价值：")
-    for i in range(agent.env.nrow):
-        for j in range(agent.env.ncol):
-            #保持输出6个字符
-            print('%6.6s' % ('%.3f' % agent.v[i * agent.env.ncol + j]), end=' ') #%6.6s {.前的6是最小字段宽度6} {.后的6是最大字符数6}
-        print() #print()函数默认自动换行，这里起到换行作用。相当于把每行的数据以空格为间隙连起来打印
-    print("策略： ")
-    for i in range(agent.env.nrow):
-        for j in range(agent.env.ncol):
-            #一些特殊的状态
-            if (i * agent.env.ncol + j) in disaster: #悬崖
-                print('****', end=' ')
-            elif (i * agent.env.ncol + j) in end:    #目标终点
-                print('EEEE', end = ' ')
-            #正常状态
+    for i in range(env.nrow):
+        for j in range(env.ncol):
+            if hasattr(agent, 'v'):
+                print('%6.6s' % ('%.3f' % agent.v[i * env.ncol + j]), end=' ')
+            elif hasattr(agent, 'Q_table'):
+                print('%6.6s' % ('%.3f' % agent.Q_table[i * env.ncol + j].max()), end=' ')
             else:
-                a = agent.pi[i * agent.env.ncol + j] #四个动作的概率数组
+                print('%6.6s' % ('%.3f' % 0), end=' ')
+        print()
+    print("策略： ")
+    for i in range(env.nrow):
+        for j in range(env.ncol):
+            if (i * env.ncol + j) in disaster:
+                print('****', end=' ')
+            elif (i * env.ncol + j) in end:
+                print('EEEE', end = ' ')
+            else:
+                if hasattr(agent, 'pi'):
+                    a = agent.pi[i * env.ncol + j]
+                else:
+                    a = agent.best_action(i * env.ncol + j)
                 pi_str = ''
                 for k in range(len(action_meaning)):
-                    pi_str += action_meaning[k] if a[k] > 0 else 'o' #当动作概率非0时，添加对应动作的方向符号。（在策略提升代码里只有最优是非零值）
+                    pi_str += action_meaning[k] if a[k] > 0 else 'o'
                 print(pi_str, end=' ')
         print()
 
@@ -179,44 +210,45 @@ class ValueIteration:
 # print_agent(agent, action_meaning, disaster = list(range(37,47)), end = [47])
                 
 
-#冰湖环境
-# import gym
-import gymnasium as gym
-env = gym.make("FrozenLake-v1", render_mode = "rgb_array") #创建环境，4x4网格，起点S,终点G,地面F(Frozen，安全但滑),冰洞H
-env = env.unwrapped # 解封装才能获取原始环境对象，访问内部属性。比如访问状态转移矩阵P
-obs, info = env.reset()
+if __name__ == "__main__":
+    #冰湖环境
+    # import gym
+    import gymnasium as gym
+    env = gym.make("FrozenLake-v1", render_mode = "rgb_array") #创建环境，4x4网格，起点S,终点G,地面F(Frozen，安全但滑),冰洞H
+    env = env.unwrapped # 解封装才能获取原始环境对象，访问内部属性。比如访问状态转移矩阵P
+    obs, info = env.reset()
 
-holes = set() #创建空的集合
-ends = set() 
-for s in env.P: #env.P[state][action] = [(probability, next_state, reward, done), ...]
-    for a in env.P[s]:
-        for s_ in env.P[s][a]: #对于每个状态 s 和动作 a，可能有多个 (p, s', r, done) 转移（因为 FrozenLake 是随机环境：想往右走，可能因冰面打滑而走向其他方向）。
-            if s_[2] == 1.0: # 如果奖励为1.0(即目标，只有目标点是1.0奖励，其他格子奖励均为0)
-                ends.add(s_[1]) # 把目标增加到ends数组中
-            if s_[3] == True: #s_[3]是done标志位，掉到洞里或者到达终点都是True
-                holes.add(s_[1]) #此时holes包含冰洞位置和终点位置
-holes = holes - ends #剔除终点位置后，holes数组只包含冰洞位置
-print("冰洞的索引：", holes)
-print("目标的索引：", ends)
+    holes = set() #创建空的集合
+    ends = set()
+    for s in env.P: #env.P[state][action] = [(probability, next_state, reward, done), ...]
+        for a in env.P[s]:
+            for s_ in env.P[s][a]: #对于每个状态 s 和动作 a，可能有多个 (p, s', r, done) 转移（因为 FrozenLake 是随机环境：想往右走，可能因冰面打滑而走向其他方向）。
+                if s_[2] == 1.0: # 如果奖励为1.0(即目标，只有目标点是1.0奖励，其他格子奖励均为0)
+                    ends.add(s_[1]) # 把目标增加到ends数组中
+                if s_[3] == True: #s_[3]是done标志位，掉到洞里或者到达终点都是True
+                    holes.add(s_[1]) #此时holes包含冰洞位置和终点位置
+    holes = holes - ends #剔除终点位置后，holes数组只包含冰洞位置
+    print("冰洞的索引：", holes)
+    print("目标的索引：", ends)
 
-# for a in env.P[14]: #查看目标左边一格的状态转移信息(probability, next_state, reward, done)   4x4棋盘，1～16格子，编号0～15,目标为编号15,目标左侧一格编号为14
-#       print(env.P[14][a])
+    # for a in env.P[14]: #查看目标左边一格的状态转移信息(probability, next_state, reward, done)   4x4棋盘，1～16格子，编号0～15,目标为编号15,目标左侧一格编号为14
+    #       print(env.P[14][a])
 
-# #3.在冰湖环境测试策略迭代算法
-# action_meaning = ['<', 'v', '>', '^']
-# theta = 1e-5
-# gamma = 0.9
-# agent = PolicyIteration(env, theta, gamma)
-# agent.policy_iteration()
-# print_agent(agent, action_meaning, disaster = [11, 12, 5, 7], end = [15])
+    # #3.在冰湖环境测试策略迭代算法
+    # action_meaning = ['<', 'v', '>', '^']
+    # theta = 1e-5
+    # gamma = 0.9
+    # agent = PolicyIteration(env, theta, gamma)
+    # agent.policy_iteration()
+    # print_agent(agent, action_meaning, disaster = [11, 12, 5, 7], end = [15])
 
-#4.在冰湖环境测试价值迭代算法
-action_meaning = ['<', 'v', '>', '^']
-theta = 1e-5
-gamma = 0.9
-agent = ValueIteration(env, theta, gamma)
-agent.value_iteration()
-print_agent(agent, action_meaning, disaster = [11, 12, 5, 7], end = [15])
+    #4.在冰湖环境测试价值迭代算法
+    action_meaning = ['<', 'v', '>', '^']
+    theta = 1e-5
+    gamma = 0.9
+    agent = ValueIteration(env, theta, gamma)
+    agent.value_iteration()
+    print_agent(agent, action_meaning, disaster = [11, 12, 5, 7], end = [15])
 
 
 
@@ -225,12 +257,12 @@ print_agent(agent, action_meaning, disaster = [11, 12, 5, 7], end = [15])
 
 
    
-#---显示地图---#
-frame = env.render()   # 返回 ndarray
-import matplotlib.pyplot as plt
-plt.imshow(frame)
-plt.axis('off')
-plt.show()
-env.close()
-#---显示地图---#
+    #---显示地图---#
+    frame = env.render()   # 返回 ndarray
+    import matplotlib.pyplot as plt
+    plt.imshow(frame)
+    plt.axis('off')
+    plt.show()
+    env.close()
+    #---显示地图---#
       

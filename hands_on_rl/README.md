@@ -45,8 +45,8 @@ This directory contains exercises following the textbook, organized by chapter n
 ## 目录结构 / Directory Structure
 
 ```
-02_slot_machine/         — 多臂老虎机
-03_markov_dp/            — 马尔可夫决策过程
-04_dp/                   — 动态规划
-05_temporal_difference/  — 时序差分
+ch02_slot_machine/         — 多臂老虎机
+ch03_markov_dp/            — 马尔可夫决策过程
+ch04_dp/                   — 动态规划
+ch05_temporal_difference/  — 时序差分
 ```

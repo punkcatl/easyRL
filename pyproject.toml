@@ -1,10 +1,23 @@
 [project]
 name = "easyRL"
 version = "0.1.0"
+description = "Progressive reinforcement learning for autonomous driving PnC engineers"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.0",
+    "gymnasium>=0.29",
+    "highway-env>=1.8",
+    "matplotlib>=3.7",
+    "numpy>=1.24",
+    "pytest>=7.0",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["hands_on_rl*"]
+include = ["algorithms*", "envs*", "utils*", "experiments*", "hands_on_rl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

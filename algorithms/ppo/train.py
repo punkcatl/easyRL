@@ -1,81 +1,23 @@
 import sys
-sys.path.insert(0, "/home/lihongl/Desktop/myRL/easyRL")
+from pathlib import Path
 
-import argparse
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+
+import os
 import numpy as np
-import gymnasium as gym
+
 from algorithms.ppo.agent import PPOAgent
 from algorithms.ppo.config import config
+from envs.highway_lane_keeping import make_continuous_lane_keeping_env
 
 
-def train_cartpole():
-    env = gym.make("CartPole-v1")
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
-
-    agent = PPOAgent(
-        state_dim=state_dim,
-        action_dim=action_dim,
-        lr=config["lr"],
-        gamma=config["gamma"],
-        clip_eps=config["clip_eps"],
-        epochs=config["epochs"],
-        batch_size=config["batch_size"],
-        hidden_dim=config["hidden_dim"],
-        gae_lambda=config["gae_lambda"],
-    )
-
-    rewards_history = []
-
-    for episode in range(config["n_episodes"]):
-        state, _ = env.reset()
-        states, actions, rewards, log_probs, values, dones = [], [], [], [], [], []
-        episode_reward = 0
-
-        done = False
-        while not done:
-            action, log_prob, value = agent.select_action(state)
-            next_state, reward, terminated, truncated, _ = env.step(action)
-            done = terminated or truncated
-
-            states.append(state)
-            actions.append(action)
-            rewards.append(reward)
-            log_probs.append(log_prob)
-            values.append(value)
-            dones.append(done)
-
-            state = next_state
-            episode_reward += reward
-
-        # Bootstrap value for last state (0 if done)
-        if done:
-            next_value = 0.0
-        else:
-            _, _, next_value = agent.select_action(state)
-
-        agent.update(states, actions, rewards, log_probs, values, dones, next_value=next_value)
-        rewards_history.append(episode_reward)
-
-        if (episode + 1) % 50 == 0:
-            avg_reward = np.mean(rewards_history[-50:])
-            print(f"Episode {episode + 1}/{config['n_episodes']}, Avg Reward (last 50): {avg_reward:.2f}")
-
-    env.close()
-    agent.save("ppo_cartpole.pth")
-    print("Training complete. Model saved to ppo_cartpole.pth")
-    return rewards_history
-
-
-def train_highway():
-    import highway_env  # noqa: F401
-
-    env = gym.make("highway-v0")
-    env.configure({"observation": {"type": "Kinematics", "flatten": True}})
-    env.reset()
-
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
+def train():
+    """Train PPO agent on highway-env continuous lane keeping."""
+    env = make_continuous_lane_keeping_env()
+    obs, _ = env.reset()
+    state_dim = obs.flatten().shape[0]
+    action_dim = env.action_space.shape[0]
 
     agent = PPOAgent(
         state_dim=state_dim,
@@ -89,20 +31,24 @@ def train_highway():
         gae_lambda=config["gae_lambda"],
     )
 
-    rewards_history = []
+    results_dir = str(Path(__file__).resolve().parent / "results")
+    os.makedirs(results_dir, exist_ok=True)
 
-    for episode in range(config["n_episodes"]):
-        state, _ = env.reset()
-        state = state.flatten()
+    rewards_history = []
+    n_episodes = config["n_episodes"]
+
+    for episode in range(n_episodes):
+        obs, _ = env.reset()
+        state = obs.flatten()
         states, actions, rewards, log_probs, values, dones = [], [], [], [], [], []
         episode_reward = 0
 
         done = False
         while not done:
             action, log_prob, value = agent.select_action(state)
-            next_state, reward, terminated, truncated, _ = env.step(action)
+            next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
-            next_state = next_state.flatten()
+            next_state = next_obs.flatten()
 
             states.append(state)
             actions.append(action)
@@ -114,6 +60,7 @@ def train_highway():
             state = next_state
             episode_reward += reward
 
+        # Bootstrap value for last state
         if done:
             next_value = 0.0
         else:
@@ -124,23 +71,13 @@ def train_highway():
 
         if (episode + 1) % 50 == 0:
             avg_reward = np.mean(rewards_history[-50:])
-            print(f"Episode {episode + 1}/{config['n_episodes']}, Avg Reward (last 50): {avg_reward:.2f}")
+            print(f"Episode {episode + 1}/{n_episodes} | "
+                  f"Avg Reward (last 50): {avg_reward:.2f}")
 
     env.close()
-    agent.save("ppo_highway.pth")
-    print("Training complete. Model saved to ppo_highway.pth")
-    return rewards_history
+    agent.save(f"{results_dir}/ppo_highway.pth")
+    print(f"\nTraining complete. Model saved to {results_dir}/")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="PPO Training")
-    parser.add_argument("--env", type=str, choices=["cartpole", "highway", "both"], default="both")
-    args = parser.parse_args()
-
-    if args.env == "cartpole":
-        train_cartpole()
-    elif args.env == "highway":
-        train_highway()
-    else:
-        train_cartpole()
-        train_highway()
+    train()

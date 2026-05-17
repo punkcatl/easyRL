@@ -8,19 +8,30 @@ A progressive reinforcement learning project for autonomous driving PnC engineer
 Q-Learning → DQN → Policy Gradient (REINFORCE) → PPO → SAC
 ```
 
+## Algorithm-Environment Mapping
+
+| Algorithm | Environment | Action Space |
+|-----------|-------------|--------------|
+| Q-Learning | CliffWalking-v0 | Discrete (tabular) |
+| DQN | highway-env | DiscreteMetaAction |
+| Policy Gradient | highway-env | DiscreteMetaAction |
+| PPO | highway-env | ContinuousAction |
+| SAC | highway-env | ContinuousAction |
+
 ## Project Structure
 
 ```
 easyRL/
 ├── algorithms/
-│   ├── q_learning/        # Tabular Q-Learning
-│   ├── dqn/               # Deep Q-Network
-│   ├── policy_gradient/   # REINFORCE
-│   ├── ppo/               # Proximal Policy Optimization
-│   └── sac/               # Soft Actor-Critic
+│   ├── q_learning/        # Tabular Q-Learning (CliffWalking)
+│   ├── dqn/               # Deep Q-Network (highway discrete)
+│   ├── policy_gradient/   # REINFORCE (highway discrete)
+│   ├── ppo/               # Proximal Policy Optimization (highway continuous)
+│   └── sac/               # Soft Actor-Critic (highway continuous)
 ├── envs/                  # Highway-env lane-keeping wrappers
 ├── utils/                 # Plotting, logging, metrics
 ├── experiments/           # Cross-algorithm comparison experiments
+├── hands_on_rl/           # Textbook chapter exercises (theory supplement)
 └── tests/                 # Unit tests
 ```
 
@@ -37,10 +48,10 @@ conda activate easyrl
 
 ```bash
 python algorithms/q_learning/train.py
-python algorithms/dqn/train.py --env both
-python algorithms/policy_gradient/train.py --env both
-python algorithms/ppo/train.py --env both
-python algorithms/sac/train.py --env both
+python algorithms/dqn/train.py
+python algorithms/policy_gradient/train.py
+python algorithms/ppo/train.py
+python algorithms/sac/train.py
 ```
 
 ### Run comparison experiment
@@ -48,6 +59,12 @@ python algorithms/sac/train.py --env both
 ```bash
 python experiments/run_comparison.py
 python experiments/plot_results.py
+```
+
+### Run tests
+
+```bash
+pytest tests/
 ```
 
 ## Evaluation Metrics
@@ -89,6 +106,7 @@ PPO is the most widely used RL algorithm in autonomous driving. Spend extra time
 - Don't start by reading the Sutton & Barto book cover-to-cover — read the relevant chapter for each algorithm
 - Each algorithm is "learned" only when you see the reward curve converge
 - Spend the most time on PPO — it's the workhorse of industrial autonomous driving RL
+- `hands_on_rl/` contains supplemental exercises from the [Hands-on RL textbook](https://hrl.boyuai.com) for building theoretical foundations
 
 ---
 
@@ -102,19 +120,30 @@ PPO is the most widely used RL algorithm in autonomous driving. Spend extra time
 Q-Learning → DQN → Policy Gradient (REINFORCE) → PPO → SAC
 ```
 
+## 算法-环境对应
+
+| 算法 | 环境 | 动作空间 |
+|------|------|---------|
+| Q-Learning | CliffWalking-v0 | 离散（表格型） |
+| DQN | highway-env | 离散元动作 |
+| Policy Gradient | highway-env | 离散元动作 |
+| PPO | highway-env | 连续动作 |
+| SAC | highway-env | 连续动作 |
+
 ## 项目结构
 
 ```
 easyRL/
 ├── algorithms/
-│   ├── q_learning/        # 表格型 Q-Learning
-│   ├── dqn/               # 深度 Q 网络
-│   ├── policy_gradient/   # REINFORCE 策略梯度
-│   ├── ppo/               # 近端策略优化
-│   └── sac/               # 软演员-评论家
+│   ├── q_learning/        # 表格型 Q-Learning（CliffWalking）
+│   ├── dqn/               # 深度 Q 网络（highway 离散）
+│   ├── policy_gradient/   # REINFORCE 策略梯度（highway 离散）
+│   ├── ppo/               # 近端策略优化（highway 连续）
+│   └── sac/               # 软演员-评论家（highway 连续）
 ├── envs/                  # highway-env 车道保持环境封装
 ├── utils/                 # 绘图、日志、评估指标
 ├── experiments/           # 跨算法对比实验
+├── hands_on_rl/           # 教材章节练习（理论补充）
 └── tests/                 # 单元测试
 ```
 
@@ -131,10 +160,10 @@ conda activate easyrl
 
 ```bash
 python algorithms/q_learning/train.py
-python algorithms/dqn/train.py --env both
-python algorithms/policy_gradient/train.py --env both
-python algorithms/ppo/train.py --env both
-python algorithms/sac/train.py --env both
+python algorithms/dqn/train.py
+python algorithms/policy_gradient/train.py
+python algorithms/ppo/train.py
+python algorithms/sac/train.py
 ```
 
 ### 运行对比实验
@@ -142,6 +171,12 @@ python algorithms/sac/train.py --env both
 ```bash
 python experiments/run_comparison.py
 python experiments/plot_results.py
+```
+
+### 运行测试
+
+```bash
+pytest tests/
 ```
 
 ## 评估指标
@@ -183,3 +218,4 @@ PPO 是自动驾驶 RL 中最常用的算法，花时间吃透它。
 - 不要先啃 Sutton 的书，太慢。每个算法只看对应章节即可
 - 每个算法必须跑出收敛曲线，看到奖励上升才算学会
 - PPO 花最多时间，它是工业界自动驾驶 RL 的主力
+- `hands_on_rl/` 包含《动手学强化学习》[教材](https://hrl.boyuai.com)的补充练习，用于夯实理论基础

@@ -1,5 +1,8 @@
 import sys
-sys.path.insert(0, "/home/lihongl/Desktop/myRL/easyRL")
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT_DIR))
 
 import gymnasium as gym
 import numpy as np
@@ -12,12 +15,10 @@ from utils.plotting import plot_training_curves
 
 def train():
     """Train Q-Learning agent on CliffWalking-v0."""
-    # Create environment
     env = gym.make("CliffWalking-v0")
     n_states = env.observation_space.n
     n_actions = env.action_space.n
 
-    # Create agent
     agent = QLearningAgent(
         n_states=n_states,
         n_actions=n_actions,
@@ -26,11 +27,9 @@ def train():
         epsilon=config["epsilon_start"],
     )
 
-    # Setup logging
-    results_dir = "/home/lihongl/Desktop/myRL/easyRL/algorithms/q_learning/results"
+    results_dir = str(Path(__file__).resolve().parent / "results")
     logger = Logger(log_dir=results_dir)
 
-    # Training loop
     n_episodes = config["n_episodes"]
     epsilon = config["epsilon_start"]
 
@@ -66,7 +65,6 @@ def train():
     logger.save()
     logger.close()
 
-    # Plot training curve
     plot_training_curves(
         log_dir=results_dir,
         tags=["episode_reward"],

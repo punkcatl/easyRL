@@ -1,5 +1,8 @@
 import sys
-sys.path.insert(0, "/home/lihongl/Desktop/myRL/easyRL")
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
 
 import json
 import os
@@ -18,7 +21,7 @@ from utils.logger import Logger
 
 
 def train_and_evaluate_dqn(n_episodes: int = 300):
-    """Train DQN on highway-env lane keeping and evaluate."""
+    """Train DQN on highway-env lane keeping (discrete) and evaluate."""
     env = make_lane_keeping_env()
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
@@ -35,7 +38,8 @@ def train_and_evaluate_dqn(n_episodes: int = 300):
         hidden_dim=dqn_config["hidden_dim"],
     )
 
-    log_dir = "experiments/results/dqn"
+    log_dir = str(ROOT_DIR / "experiments" / "results" / "dqn")
+    os.makedirs(log_dir, exist_ok=True)
     logger = Logger(log_dir=log_dir)
     epsilon = dqn_config["epsilon_start"]
 
@@ -55,11 +59,9 @@ def train_and_evaluate_dqn(n_episodes: int = 300):
             state = next_state
             total_reward += reward
 
-        # Decay epsilon
         epsilon = max(dqn_config["epsilon_end"], epsilon * dqn_config["epsilon_decay"])
         agent.epsilon = epsilon
 
-        # Update target network
         if (episode + 1) % dqn_config["target_update_freq"] == 0:
             agent.update_target()
 
@@ -73,7 +75,6 @@ def train_and_evaluate_dqn(n_episodes: int = 300):
     logger.save()
     logger.close()
 
-    # Evaluate with greedy policy
     agent.epsilon = 0.0
     metrics = evaluate_agent(env, agent, n_episodes=20, flatten_obs=True)
     env.close()
@@ -84,11 +85,11 @@ def train_and_evaluate_dqn(n_episodes: int = 300):
 
 
 def train_and_evaluate_ppo(n_episodes: int = 300):
-    """Train PPO on highway-env lane keeping and evaluate."""
-    env = make_lane_keeping_env()
+    """Train PPO on highway-env continuous lane keeping and evaluate."""
+    env = make_continuous_lane_keeping_env()
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
-    action_dim = env.action_space.n
+    action_dim = env.action_space.shape[0]
 
     agent = PPOAgent(
         state_dim=state_dim,
@@ -102,7 +103,8 @@ def train_and_evaluate_ppo(n_episodes: int = 300):
         gae_lambda=ppo_config["gae_lambda"],
     )
 
-    log_dir = "experiments/results/ppo"
+    log_dir = str(ROOT_DIR / "experiments" / "results" / "ppo")
+    os.makedirs(log_dir, exist_ok=True)
     logger = Logger(log_dir=log_dir)
 
     for episode in range(n_episodes):
@@ -128,7 +130,6 @@ def train_and_evaluate_ppo(n_episodes: int = 300):
             state = next_state
             episode_reward += reward
 
-        # Bootstrap value
         if done:
             next_value = 0.0
         else:
@@ -145,7 +146,6 @@ def train_and_evaluate_ppo(n_episodes: int = 300):
     logger.save()
     logger.close()
 
-    # Evaluate (evaluate_agent handles tuple returns from PPO)
     metrics = evaluate_agent(env, agent, n_episodes=20, flatten_obs=True)
     env.close()
 
@@ -174,7 +174,8 @@ def train_and_evaluate_sac(n_episodes: int = 300):
         auto_alpha=sac_config["auto_alpha"],
     )
 
-    log_dir = "experiments/results/sac"
+    log_dir = str(ROOT_DIR / "experiments" / "results" / "sac")
+    os.makedirs(log_dir, exist_ok=True)
     logger = Logger(log_dir=log_dir)
     total_steps = 0
 
@@ -213,8 +214,6 @@ def train_and_evaluate_sac(n_episodes: int = 300):
     logger.save()
     logger.close()
 
-    # Evaluate with deterministic policy
-    # Create a wrapper to pass deterministic=True
     class DeterministicSACWrapper:
         def __init__(self, sac_agent):
             self._agent = sac_agent
@@ -233,35 +232,33 @@ def train_and_evaluate_sac(n_episodes: int = 300):
 
 def main():
     """Run full comparison experiment."""
-    os.makedirs("experiments/results", exist_ok=True)
+    results_dir = str(ROOT_DIR / "experiments" / "results")
+    os.makedirs(results_dir, exist_ok=True)
 
     print("=" * 60)
     print("COMPARISON EXPERIMENT: DQN vs PPO vs SAC on Highway Lane Keeping")
     print("=" * 60)
 
-    # Train and evaluate all algorithms
-    print("\n--- Training DQN ---")
+    print("\n--- Training DQN (discrete actions) ---")
     dqn_metrics, _ = train_and_evaluate_dqn(n_episodes=300)
 
-    print("\n--- Training PPO ---")
+    print("\n--- Training PPO (continuous actions) ---")
     ppo_metrics, _ = train_and_evaluate_ppo(n_episodes=300)
 
-    print("\n--- Training SAC ---")
+    print("\n--- Training SAC (continuous actions) ---")
     sac_metrics, _ = train_and_evaluate_sac(n_episodes=300)
 
-    # Save comparison results
     results = {
         "DQN": dqn_metrics,
         "PPO": ppo_metrics,
         "SAC": sac_metrics,
     }
 
-    results_path = "experiments/results/comparison.json"
+    results_path = os.path.join(results_dir, "comparison.json")
     with open(results_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nResults saved to {results_path}")
 
-    # Print summary table
     print("\n" + "=" * 60)
     print(f"{'Metric':<22} {'DQN':>10} {'PPO':>10} {'SAC':>10}")
     print("-" * 60)

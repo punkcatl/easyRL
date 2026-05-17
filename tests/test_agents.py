@@ -77,24 +77,25 @@ from algorithms.ppo.agent import PPOAgent
 
 
 def test_ppo_agent_init():
-    agent = PPOAgent(state_dim=4, action_dim=2, lr=3e-4, gamma=0.99, clip_eps=0.2, epochs=10, batch_size=64)
+    agent = PPOAgent(state_dim=25, action_dim=2, lr=3e-4, gamma=0.99, clip_eps=0.2, epochs=10, batch_size=64)
     assert agent is not None
 
 
 def test_ppo_agent_select_action():
-    agent = PPOAgent(state_dim=4, action_dim=2, lr=3e-4, gamma=0.99, clip_eps=0.2, epochs=10, batch_size=64)
-    state = np.zeros(4)
+    agent = PPOAgent(state_dim=25, action_dim=2, lr=3e-4, gamma=0.99, clip_eps=0.2, epochs=10, batch_size=64)
+    state = np.zeros(25)
     action, log_prob, value = agent.select_action(state)
-    assert action in [0, 1]
+    assert action.shape == (2,)
+    assert np.all(action >= -1.0) and np.all(action <= 1.0)
     assert isinstance(log_prob, float)
     assert isinstance(value, float)
 
 
 def test_ppo_agent_update():
-    agent = PPOAgent(state_dim=4, action_dim=2, lr=3e-4, gamma=0.99, clip_eps=0.2, epochs=2, batch_size=4)
+    agent = PPOAgent(state_dim=25, action_dim=2, lr=3e-4, gamma=0.99, clip_eps=0.2, epochs=2, batch_size=4)
     states, actions, rewards, log_probs, values, dones = [], [], [], [], [], []
     for _ in range(10):
-        s = np.random.randn(4)
+        s = np.random.randn(25)
         a, lp, v = agent.select_action(s)
         states.append(s)
         actions.append(a)
@@ -102,8 +103,7 @@ def test_ppo_agent_update():
         log_probs.append(lp)
         values.append(v)
         dones.append(False)
-    loss = agent.update(states, actions, rewards, log_probs, values, dones, next_value=0.0)
-    assert loss is not None
+    agent.update(states, actions, rewards, log_probs, values, dones, next_value=0.0)
 
 
 from algorithms.sac.agent import SACAgent

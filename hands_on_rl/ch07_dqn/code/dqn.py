@@ -151,8 +151,8 @@ class DQN:
         # 简单记忆： gather(1, ...) = 固定行，选列；gather(0, ...) = 固定列，选行。
 
         max_next_q_values = (
-            self.q_net(next_states).max(1)[0].view(-1, 1)
-        )  # 把下一个状态的最大Q值取出来，转成列的形式
+            self.target_q_net(next_states).max(1)[0].view(-1, 1)
+        )  # 用目标网络计算下一状态的最大Q值，提供稳定的TD目标
         # .max(1) — 沿第1维（列维度）取最大值，返回一个命名元组 (values, indices)
         # [0] — 取 values，即每行的最大 Q 值，形状为 (batch_size,)（一维）
         # 举例：
@@ -184,7 +184,7 @@ lr = 2e-3
 num_episodes = 500
 hidden_dim = 128
 gamma = 0.98
-epsilon = 0.01
+epsilon = 0.2
 target_update = 10
 buffer_size = 10000
 minimal_size = 500
@@ -237,9 +237,7 @@ for i in range(10):  # 将500episodes划分成10份，分别显示进度条
                         "dones": b_d,
                     }
                     agent.update(transition_dict)
-            return_list.append(
-                episode_return
-            )  # 记录每一份（50条数据）的总回报。外层10*内层50,return_list一共会记录500个episodes的回报。
+            return_list.append(episode_return)
             if (i_episode + 1) % 10 == 0:
                 pbar.set_postfix(
                     {  # 每 10 个 episode 更新一次进度条后缀信息：显示当前的全局 episode 编号和最近 10 个 episode 的平均回报
@@ -269,7 +267,7 @@ if RENDER_RESULT:
     agent.epsilon = 0  # 展示时纯利用训练好的Q网络，不做随机探索
     episodes_to_display = 5
     env_show = gym.make(env_name, render_mode="human")
-    for _ in range(episodes_to_display):  # 展示10个episode
+    for _ in range(episodes_to_display):  # 展示训练效果
         state, _ = env_show.reset()
         done = False
         episode_return = 0

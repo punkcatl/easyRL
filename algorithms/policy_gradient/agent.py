@@ -46,7 +46,7 @@ class REINFORCEAgent:
         self.log_probs = []
         self.rewards = []
 
-    def select_action(self, state: np.ndarray) -> int:
+    def take_action(self, state: np.ndarray) -> int:
         """Select action by sampling from the policy distribution."""
         state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         probs = self.policy(state_t)

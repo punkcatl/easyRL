@@ -51,7 +51,7 @@ def train():
 
         done = False
         while not done:
-            action, log_prob, value = agent.select_action(state)
+            action, log_prob, value = agent.take_action(state)
             next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
             next_state = next_obs.flatten()
@@ -71,7 +71,7 @@ def train():
         if done:
             next_value = 0.0
         else:
-            _, _, next_value = agent.select_action(state)
+            _, _, next_value = agent.take_action(state)
 
         agent.update(states, actions, rewards, log_probs, values, dones, next_value=next_value)
         rewards_history.append(episode_reward)

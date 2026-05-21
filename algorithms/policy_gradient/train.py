@@ -47,7 +47,7 @@ def train():
         update_hud(episode + 1, n_episodes, 0.0, 0.0)
 
         while not (done or truncated):
-            action = agent.select_action(state)
+            action = agent.take_action(state)
             obs, reward, done, truncated, _ = env.step(action)
             agent.store_reward(reward)
             state = obs.flatten()
@@ -58,7 +58,7 @@ def train():
         loss = agent.update()
 
         # Log reward
-        logger.log("episode_reward", total_reward, episode)
+        logger.log("episode_reward", episode, total_reward)
 
         # Print progress
         if (episode + 1) % 50 == 0:

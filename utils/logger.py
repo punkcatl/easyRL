@@ -16,11 +16,12 @@ class Logger:
             from torch.utils.tensorboard import SummaryWriter
             self.writer = SummaryWriter(log_dir=log_dir)
 
-    def log(self, tag: str, value: float, step: int):
+    def log(self, tag: str, step: int, value: float):
         """Append (step, value) to data[tag] and write to TensorBoard if enabled."""
         self.data[tag].append((step, value))
         if self.writer is not None:
             self.writer.add_scalar(tag, value, step)
+            self.writer.flush()
 
     def get_data(self, tag: str) -> list:
         """Return list of (step, value) tuples for the given tag."""

@@ -9,10 +9,10 @@ def test_qlearning_agent_init():
     assert np.all(agent.q_table == 0)
 
 
-def test_qlearning_agent_select_action():
+def test_qlearning_agent_take_action():
     agent = QLearningAgent(n_states=48, n_actions=4, lr=0.1, gamma=0.99, epsilon=0.0)
     agent.q_table[0, 2] = 10.0
-    action = agent.select_action(0)
+    action = agent.take_action(0)
     assert action == 2
 
 
@@ -30,10 +30,10 @@ def test_dqn_agent_init():
     assert agent is not None
 
 
-def test_dqn_agent_select_action():
+def test_dqn_agent_take_action():
     agent = DQNAgent(state_dim=4, action_dim=2, lr=1e-3, gamma=0.99, epsilon=0.0, buffer_size=1000, batch_size=32)
     state = np.zeros(4)
-    action = agent.select_action(state)
+    action = agent.take_action(state)
     assert action in [0, 1]
 
 
@@ -41,10 +41,10 @@ def test_dqn_agent_store_and_learn():
     agent = DQNAgent(state_dim=4, action_dim=2, lr=1e-3, gamma=0.99, epsilon=1.0, buffer_size=100, batch_size=4)
     for i in range(10):
         state = np.random.randn(4)
-        action = agent.select_action(state)
+        action = agent.take_action(state)
         next_state = np.random.randn(4)
         agent.store_transition(state, action, 1.0, next_state, False)
-    loss = agent.learn()
+    loss = agent.update()
     assert loss is not None
 
 
@@ -56,10 +56,10 @@ def test_reinforce_agent_init():
     assert agent is not None
 
 
-def test_reinforce_agent_select_action():
+def test_reinforce_agent_take_action():
     agent = REINFORCEAgent(state_dim=4, action_dim=2, lr=1e-3, gamma=0.99)
     state = np.zeros(4)
-    action = agent.select_action(state)
+    action = agent.take_action(state)
     assert action in [0, 1]
 
 
@@ -67,7 +67,7 @@ def test_reinforce_agent_update():
     agent = REINFORCEAgent(state_dim=4, action_dim=2, lr=1e-3, gamma=0.99)
     state = np.zeros(4)
     for _ in range(5):
-        action = agent.select_action(state)
+        action = agent.take_action(state)
         agent.store_reward(1.0)
     loss = agent.update()
     assert loss is not None
@@ -81,10 +81,10 @@ def test_ppo_agent_init():
     assert agent is not None
 
 
-def test_ppo_agent_select_action():
+def test_ppo_agent_take_action():
     agent = PPOAgent(state_dim=25, action_dim=2, lr=3e-4, gamma=0.99, clip_eps=0.2, epochs=10, batch_size=64)
     state = np.zeros(25)
-    action, log_prob, value = agent.select_action(state)
+    action, log_prob, value = agent.take_action(state)
     assert action.shape == (2,)
     assert np.all(action >= -1.0) and np.all(action <= 1.0)
     assert isinstance(log_prob, float)
@@ -96,7 +96,7 @@ def test_ppo_agent_update():
     states, actions, rewards, log_probs, values, dones = [], [], [], [], [], []
     for _ in range(10):
         s = np.random.randn(25)
-        a, lp, v = agent.select_action(s)
+        a, lp, v = agent.take_action(s)
         states.append(s)
         actions.append(a)
         rewards.append(1.0)
@@ -114,10 +114,10 @@ def test_sac_agent_init():
     assert agent is not None
 
 
-def test_sac_agent_select_action():
+def test_sac_agent_take_action():
     agent = SACAgent(state_dim=3, action_dim=1, lr=3e-4, gamma=0.99, tau=0.005, alpha=0.2, buffer_size=10000, batch_size=64)
     state = np.zeros(3)
-    action = agent.select_action(state)
+    action = agent.take_action(state)
     assert action.shape == (1,)
     assert -1.0 <= action[0] <= 1.0
 
@@ -126,8 +126,8 @@ def test_sac_agent_store_and_learn():
     agent = SACAgent(state_dim=3, action_dim=1, lr=3e-4, gamma=0.99, tau=0.005, alpha=0.2, buffer_size=100, batch_size=4)
     for _ in range(10):
         state = np.random.randn(3)
-        action = agent.select_action(state)
+        action = agent.take_action(state)
         next_state = np.random.randn(3)
         agent.store_transition(state, action, 1.0, next_state, False)
-    result = agent.learn()
+    result = agent.update()
     assert result is not None

@@ -51,19 +51,19 @@ def train_and_evaluate_dqn(n_episodes: int = 300):
         done = False
 
         while not done:
-            action = agent.select_action(state)
+            action = agent.take_action(state)
             next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
             next_state = next_obs.flatten()
             agent.store_transition(state, action, reward, next_state, done)
-            agent.learn()
+            agent.update()
             state = next_state
             total_reward += reward
 
         epsilon = max(dqn_config["epsilon_end"], epsilon * dqn_config["epsilon_decay"])
         agent.epsilon = epsilon
 
-        logger.log("reward", total_reward, episode)
+        logger.log("reward", episode, total_reward)
 
         if (episode + 1) % 50 == 0:
             recent = [v for _, v in logger.get_data("reward")[-50:]]
@@ -113,7 +113,7 @@ def train_and_evaluate_ppo(n_episodes: int = 300):
         done = False
 
         while not done:
-            action, log_prob, value = agent.select_action(state)
+            action, log_prob, value = agent.take_action(state)
             next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
             next_state = next_obs.flatten()
@@ -131,10 +131,10 @@ def train_and_evaluate_ppo(n_episodes: int = 300):
         if done:
             next_value = 0.0
         else:
-            _, _, next_value = agent.select_action(state)
+            _, _, next_value = agent.take_action(state)
 
         agent.update(states, actions, rewards, log_probs, values, dones, next_value=next_value)
-        logger.log("reward", episode_reward, episode)
+        logger.log("reward", episode, episode_reward)
 
         if (episode + 1) % 50 == 0:
             recent = [v for _, v in logger.get_data("reward")[-50:]]
@@ -187,7 +187,7 @@ def train_and_evaluate_sac(n_episodes: int = 300):
             if total_steps < sac_config["start_steps"]:
                 action = env.action_space.sample()
             else:
-                action = agent.select_action(state)
+                action = agent.take_action(state)
 
             next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
@@ -196,13 +196,13 @@ def train_and_evaluate_sac(n_episodes: int = 300):
             agent.store_transition(state, action, reward, next_state, done)
 
             if total_steps >= sac_config["start_steps"]:
-                agent.learn()
+                agent.update()
 
             state = next_state
             episode_reward += reward
             total_steps += 1
 
-        logger.log("reward", episode_reward, episode)
+        logger.log("reward", episode, episode_reward)
 
         if (episode + 1) % 50 == 0:
             recent = [v for _, v in logger.get_data("reward")[-50:]]
@@ -216,8 +216,8 @@ def train_and_evaluate_sac(n_episodes: int = 300):
         def __init__(self, sac_agent):
             self._agent = sac_agent
 
-        def select_action(self, state):
-            return self._agent.select_action(state, deterministic=True)
+        def take_action(self, state):
+            return self._agent.take_action(state, deterministic=True)
 
     deterministic_agent = DeterministicSACWrapper(agent)
     metrics = evaluate_agent(env, deterministic_agent, n_episodes=20, flatten_obs=True)

@@ -24,7 +24,7 @@ def evaluate_agent(env, agent, n_episodes: int = 20, flatten_obs: bool = True) -
 
         while not done:
             # Get action from agent
-            action = agent.select_action(state)
+            action = agent.take_action(state)
             # Handle tuple returns (PPO returns action, log_prob, value)
             if isinstance(action, tuple):
                 action = action[0]

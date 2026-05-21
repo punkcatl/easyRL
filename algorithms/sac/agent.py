@@ -64,7 +64,7 @@ class ReplayBuffer:
     def __init__(self, capacity: int):
         self.buffer = deque(maxlen=capacity)
 
-    def push(self, state, action, reward, next_state, done):
+    def add(self, state, action, reward, next_state, done):
         self.buffer.append((state, action, reward, next_state, done))
 
     def sample(self, batch_size: int):
@@ -78,7 +78,7 @@ class ReplayBuffer:
             np.array(dones, dtype=np.float32).reshape(-1, 1),
         )
 
-    def __len__(self):
+    def size(self):
         return len(self.buffer)
 
 
@@ -133,7 +133,7 @@ class SACAgent:
         # Replay buffer
         self.buffer = ReplayBuffer(buffer_size)
 
-    def select_action(self, state: np.ndarray, deterministic: bool = False) -> np.ndarray:
+    def take_action(self, state: np.ndarray, deterministic: bool = False) -> np.ndarray:
         state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
             if deterministic:
@@ -144,10 +144,10 @@ class SACAgent:
         return action.cpu().numpy().flatten()
 
     def store_transition(self, state, action, reward, next_state, done):
-        self.buffer.push(state, action, reward, next_state, done)
+        self.buffer.add(state, action, reward, next_state, done)
 
-    def learn(self) -> dict:
-        if len(self.buffer) < self.batch_size:
+    def update(self) -> dict:
+        if self.buffer.size() < self.batch_size:
             return None
 
         states, actions, rewards, next_states, dones = self.buffer.sample(self.batch_size)

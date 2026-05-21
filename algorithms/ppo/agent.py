@@ -62,7 +62,7 @@ class PPOAgent:
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
 
-    def select_action(self, state: np.ndarray):
+    def take_action(self, state: np.ndarray):
         state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
             mean, std = self.actor(state_t)

@@ -12,8 +12,8 @@ class TestLogger:
         """Log two values, verify get_data returns them."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             logger = Logger(log_dir=tmp_dir, use_tensorboard=False)
-            logger.log("reward", 1.0, step=0)
-            logger.log("reward", 2.5, step=1)
+            logger.log("reward", 0, 1.0)
+            logger.log("reward", 1, 2.5)
 
             data = logger.get_data("reward")
             assert data == [(0, 1.0), (1, 2.5)]
@@ -23,8 +23,8 @@ class TestLogger:
         """Log, save, verify CSV file exists."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             logger = Logger(log_dir=tmp_dir, use_tensorboard=False)
-            logger.log("loss", 0.5, step=0)
-            logger.log("loss", 0.3, step=1)
+            logger.log("loss", 0, 0.5)
+            logger.log("loss", 1, 0.3)
             logger.save()
 
             csv_path = os.path.join(tmp_dir, "loss.csv")

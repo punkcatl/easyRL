@@ -12,7 +12,7 @@ class QLearningAgent:
         self.epsilon = epsilon
         self.q_table = np.zeros((n_states, n_actions))
 
-    def select_action(self, state: int) -> int:
+    def take_action(self, state: int) -> int:
         """Select action using epsilon-greedy policy."""
         if np.random.random() < self.epsilon:
             return np.random.randint(self.n_actions)

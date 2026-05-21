@@ -9,4 +9,5 @@ config = {
     "batch_size": 64,
     "tau": 0.005,
     "hidden_dim": 128,
+    "use_tensorboard": True,
 }

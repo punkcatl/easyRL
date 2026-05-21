@@ -40,7 +40,7 @@ def train():
         truncated = False
 
         while not (done or truncated):
-            action = agent.select_action(state)
+            action = agent.take_action(state)
             next_state, reward, done, truncated, _ = env.step(action)
             agent.update(state, action, reward, next_state, done)
             state = next_state
@@ -51,7 +51,7 @@ def train():
         agent.epsilon = epsilon
 
         # Log reward
-        logger.log("episode_reward", total_reward, episode)
+        logger.log("episode_reward", episode, total_reward)
 
         # Print progress
         if (episode + 1) % 50 == 0:

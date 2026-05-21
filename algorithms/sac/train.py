@@ -55,7 +55,7 @@ def train():
             if total_steps < config["start_steps"]:
                 action = env.action_space.sample()
             else:
-                action = agent.select_action(state)
+                action = agent.take_action(state)
 
             next_obs, reward, terminated, truncated, _ = env.step(action)
             next_state = next_obs.flatten()
@@ -64,7 +64,7 @@ def train():
             agent.store_transition(state, action, reward, next_state, done)
 
             if total_steps >= config["start_steps"]:
-                agent.learn()
+                agent.update()
 
             state = next_state
             episode_reward += reward

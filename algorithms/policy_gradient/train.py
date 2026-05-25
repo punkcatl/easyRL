@@ -33,7 +33,10 @@ def train():
     )
 
     results_dir = str(Path(__file__).resolve().parent / "results")
-    logger = Logger(log_dir=results_dir)
+    logger = Logger(log_dir=results_dir, use_tensorboard=True)
+
+    import torch
+    logger.add_graph(agent.policy, torch.randn(1, state_dim).to(agent.device))
 
     n_episodes = config["n_episodes"]
 

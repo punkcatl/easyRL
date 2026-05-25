@@ -65,6 +65,10 @@ def train():
     # use_tensorboard=True时会同时写入TensorBoard事件文件，可用tensorboard命令实时查看训练曲线
     logger = Logger(log_dir=results_dir, use_tensorboard=config["use_tensorboard"])
 
+    # 将网络结构写入TensorBoard，可在GRAPHS标签页中查看
+    import torch
+    logger.add_graph(agent.q_net, torch.randn(1, state_dim).to(agent.device))
+
     n_episodes = config["n_episodes"] #总训练轮数
     epsilon = config["epsilon_start"] #探索率，设置为1.0表示初始阶段完全随机探索，随着训练进行会逐渐衰减到config["epsilon_end"]（0.01），使得智能体在训练后期更多地利用学到的知识而不是随机探索
 

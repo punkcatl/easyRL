@@ -6,10 +6,12 @@ sys.path.insert(0, str(ROOT_DIR))
 
 import os
 import numpy as np
+import torch
 
 from algorithms.ppo.agent import PPOAgent
 from algorithms.ppo.config import config
 from envs.highway_lane_keeping import make_continuous_lane_keeping_env
+from utils.logger import Logger
 from utils.hud import patch_viewer_for_hud, update_hud
 
 
@@ -37,6 +39,8 @@ def train():
 
     results_dir = str(Path(__file__).resolve().parent / "results")
     os.makedirs(results_dir, exist_ok=True)
+    logger = Logger(log_dir=results_dir, use_tensorboard=True)
+    logger.add_graph(agent.actor, torch.randn(1, state_dim).to(agent.device))
 
     rewards_history = []
     n_episodes = config["n_episodes"]
@@ -75,12 +79,15 @@ def train():
 
         agent.update(states, actions, rewards, log_probs, values, dones, next_value=next_value)
         rewards_history.append(episode_reward)
+        logger.log("episode_reward", episode, episode_reward)
 
         if (episode + 1) % 50 == 0:
             avg_reward = np.mean(rewards_history[-50:])
             print(f"Episode {episode + 1}/{n_episodes} | "
                   f"Avg Reward (last 50): {avg_reward:.2f}")
 
+    logger.save()
+    logger.close()
     env.close()
     agent.save(f"{results_dir}/ppo_highway.pth")
     print(f"\nTraining complete. Model saved to {results_dir}/")

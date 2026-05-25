@@ -6,10 +6,12 @@ sys.path.insert(0, str(ROOT_DIR))
 
 import os
 import numpy as np
+import torch
 
 from algorithms.sac.agent import SACAgent
 from algorithms.sac.config import config
 from envs.highway_lane_keeping import make_continuous_lane_keeping_env
+from utils.logger import Logger
 from utils.hud import patch_viewer_for_hud, update_hud
 
 
@@ -38,6 +40,8 @@ def train():
 
     results_dir = str(Path(__file__).resolve().parent / "results")
     os.makedirs(results_dir, exist_ok=True)
+    logger = Logger(log_dir=results_dir, use_tensorboard=True)
+    logger.add_graph(agent.policy, torch.randn(1, state_dim).to(agent.device))
 
     total_steps = 0
     rewards_history = []
@@ -72,6 +76,7 @@ def train():
             update_hud(episode + 1, n_episodes, 0.0, episode_reward)
 
         rewards_history.append(episode_reward)
+        logger.log("episode_reward", episode, episode_reward)
 
         if (episode + 1) % 10 == 0:
             avg_reward = np.mean(rewards_history[-10:])
@@ -80,6 +85,8 @@ def train():
                   f"Avg(10): {avg_reward:.1f} | "
                   f"Steps: {total_steps}")
 
+    logger.save()
+    logger.close()
     env.close()
     agent.save(f"{results_dir}/sac_highway.pth")
     print(f"\nTraining complete. Model saved to {results_dir}/")

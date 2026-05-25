@@ -16,6 +16,12 @@ class Logger:
             from torch.utils.tensorboard import SummaryWriter
             self.writer = SummaryWriter(log_dir=log_dir)
 
+    def add_graph(self, model, input_example):
+        """Write model graph to TensorBoard."""
+        if self.writer is not None:
+            self.writer.add_graph(model, input_example)
+            self.writer.flush()
+
     def log(self, tag: str, step: int, value: float):
         """Append (step, value) to data[tag] and write to TensorBoard if enabled."""
         self.data[tag].append((step, value))

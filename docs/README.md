@@ -15,7 +15,7 @@
 
 ## Project & Environment
 
-- [Algorithm-Environment Mapping](algorithm_env_mapping.md) — Which RL algorithm fits which environment
+- [Algorithm-Environment Mapping](algorithm_env_mapping.md) — Which RL algorithm fits which environment, plus value/policy/actor-critic classification
 - [End-to-End Autonomous Driving](end_to_end_autonomous_driving.md) — RL fine-tuning for autonomous driving
 - [Model Deployment Pipeline](model_deployment_pipeline.md) — From training to production deployment
 
@@ -38,6 +38,6 @@
 
 ## 项目与环境
 
-- [算法-环境映射](algorithm_env_mapping.md) — 哪种 RL 算法适配哪种环境
+- [算法-环境映射](algorithm_env_mapping.md) — 哪种 RL 算法适配哪种环境，以及 value/policy/actor-critic 分类
 - [端到端自动驾驶](end_to_end_autonomous_driving.md) — 自动驾驶的 RL 微调
 - [模型部署流水线](model_deployment_pipeline.md) — 从训练到生产部署

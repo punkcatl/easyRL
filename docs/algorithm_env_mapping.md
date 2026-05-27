@@ -8,6 +8,23 @@
 | PPO | highway-env (continuous) | ContinuousAction | Clip mechanism, Gaussian policy for continuous control |
 | SAC | highway-env (continuous) | ContinuousAction | Maximum entropy framework, off-policy continuous control |
 
+## Algorithm Families
+
+| Algorithm | Family | Core Idea |
+|-----------|--------|-----------|
+| Q-Learning | Value-based | Learn $Q(s, a)$ and derive the policy with $\arg\max_a Q(s, a)$ |
+| DQN | Value-based | Approximate $Q(s, a)$ with a neural network instead of a table |
+| Policy Gradient (REINFORCE) | Policy-based | Directly optimize the policy $\pi_\theta(a\|s)$ without a separate critic |
+| PPO | Actor-Critic | Learn both a policy and a value function; policy optimization is stabilized by clipping |
+| SAC | Actor-Critic | Learn both a stochastic policy and twin Q-functions under a maximum entropy objective |
+
+### Quick Summary
+
+- **Value-based**: Q-Learning, DQN
+- **Policy-based**: REINFORCE
+- **Actor-Critic**: PPO, SAC
+- **Practical note**: PPO and SAC are often grouped under policy optimization methods, but calling them Actor-Critic is more precise because they rely on both actor and critic networks.
+
 ## Design Rationale
 
 - **Q-Learning** uses CliffWalking as a minimal tabular environment to build intuition for TD learning.
@@ -58,6 +75,23 @@ This loads the saved model and runs 10 episodes with the pygame window open, so 
 | Policy Gradient | highway-env（离散） | DiscreteMetaAction | 策略梯度、用回报加权对数概率 |
 | PPO | highway-env（连续） | ContinuousAction | clip 机制、高斯策略连续控制 |
 | SAC | highway-env（连续） | ContinuousAction | 最大熵框架、off-policy 连续控制 |
+
+## 算法类别
+
+| 算法 | 类别 | 核心思想 |
+|------|------|---------|
+| Q-Learning | 基于价值 Value-based | 学习 $Q(s, a)$，再通过 $\arg\max_a Q(s, a)$ 导出策略 |
+| DQN | 基于价值 Value-based | 用神经网络逼近 $Q(s, a)$，本质仍是价值学习 |
+| Policy Gradient (REINFORCE) | 基于策略 Policy-based | 直接优化策略 $\pi_\theta(a\|s)$，不单独学习 critic |
+| PPO | Actor-Critic | 同时学习策略和价值函数，并用 clip 机制稳定策略更新 |
+| SAC | Actor-Critic | 在最大熵目标下，同时学习随机策略和双 Q 函数 |
+
+### 快速总结
+
+- **基于价值**：Q-Learning、DQN
+- **基于策略**：REINFORCE
+- **Actor-Critic**：PPO、SAC
+- **补充说明**：PPO 和 SAC 常被归到“偏策略优化”方法里，但更准确的说法是 Actor-Critic，因为它们同时依赖 actor 和 critic 网络。
 
 ## 设计思路
 

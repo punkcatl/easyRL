@@ -18,6 +18,8 @@ Q-Learning → DQN → Policy Gradient (REINFORCE) → PPO → SAC
 | PPO | highway-env | ContinuousAction |
 | SAC | highway-env | ContinuousAction |
 
+For the value-based / policy-based / actor-critic classification, see [docs/algorithm_env_mapping.md](docs/algorithm_env_mapping.md).
+
 ## Project Structure
 
 ```
@@ -129,6 +131,8 @@ Q-Learning → DQN → Policy Gradient (REINFORCE) → PPO → SAC
 | Policy Gradient | highway-env | 离散元动作 |
 | PPO | highway-env | 连续动作 |
 | SAC | highway-env | 连续动作 |
+
+关于 value-based / policy-based / actor-critic 的分类说明，见 [docs/algorithm_env_mapping.md](docs/algorithm_env_mapping.md)。
 
 ## 项目结构
 

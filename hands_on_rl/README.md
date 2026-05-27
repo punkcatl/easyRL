@@ -49,4 +49,6 @@ ch02_slot_machine/         — 多臂老虎机
 ch03_markov_dp/            — 马尔可夫决策过程
 ch04_dp/                   — 动态规划
 ch05_temporal_difference/  — 时序差分
+ch07_dqn/                  — DQN，已整理为 code/docs/images/notebook
+ch09_policy_gradient/      — 策略梯度，已整理为 code/docs/images/notebook
 ```

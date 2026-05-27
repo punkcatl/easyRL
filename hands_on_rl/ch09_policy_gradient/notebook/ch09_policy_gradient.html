@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ch09 策略梯度算法 — 动手学强化学习</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=JetBrains+Mono:wght@400;500&family=Source+Han+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #faf9f7;
+  --bg-surface: #ffffff;
+  --bg-code: #1a1b26;
+  --bg-formula: #f5f3ef;
+  --bg-toc: #f0ede8;
+  --bg-algo: #eef2ff;
+  --text-primary: #2c2c2c;
+  --text-secondary: #5a5a5a;
+  --text-muted: #8a8a8a;
+  --accent: #3d5af1;
+  --accent-bg: rgba(61, 90, 241, 0.08);
+  --border: #e5e2dc;
+  --border-light: #f0ede8;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+  --radius: 10px;
+  --font-serif: "Noto Serif SC", "Songti SC", serif;
+  --font-sans: "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #16161e;
+    --bg-surface: #1e1e2e;
+    --bg-code: #11111b;
+    --bg-formula: #1e1e2e;
+    --bg-toc: #1a1a28;
+    --bg-algo: #1a1a2e;
+    --text-primary: #e0ddd5;
+    --text-secondary: #a9a6a0;
+    --text-muted: #6c6c6c;
+    --accent: #7aa2f7;
+    --accent-bg: rgba(122, 162, 247, 0.1);
+    --border: #2a2a3c;
+    --border-light: #232336;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.9;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr min(780px, 90vw) 1fr;
+  gap: 0;
+}
+
+.layout > * { grid-column: 2; }
+
+.container {
+  padding: 60px 32px 80px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+  min-height: 100vh;
+}
+
+h1 {
+  font-family: var(--font-serif);
+  font-size: 2.2em;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 40px;
+  letter-spacing: -0.02em;
+  position: relative;
+  padding-bottom: 16px;
+}
+h1::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+h2 {
+  font-family: var(--font-serif);
+  font-size: 1.5em;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 56px;
+  margin-bottom: 20px;
+  padding-left: 16px;
+  border-left: 3px solid var(--accent);
+}
+
+h3 {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 36px;
+  margin-bottom: 14px;
+  letter-spacing: 0.02em;
+  font-family: var(--font-sans);
+}
+
+p {
+  margin-bottom: 18px;
+  text-align: justify;
+  color: var(--text-primary);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+a:hover { opacity: 0.75; }
+
+pre {
+  background: var(--bg-code);
+  color: #cdd6f4;
+  padding: 22px 24px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 18px 0 26px;
+  font-size: 0.85em;
+  line-height: 1.7;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.inline-code {
+  background: var(--accent-bg);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.88em;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.formula {
+  background: var(--bg-formula);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 24px;
+  margin: 18px 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.algorithm-box {
+  background: var(--bg-algo);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin: 24px 0;
+  position: relative;
+  line-height: 1.5;
+}
+.algorithm-box::before {
+  content: 'ALGORITHM';
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7em;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+}
+.algorithm-box p { margin-bottom: 6px; line-height: 1.5; text-align: left; }
+
+ul, ol { margin: 14px 0 18px 28px; }
+li { margin-bottom: 10px; }
+
+strong { color: var(--text-primary); font-weight: 700; }
+
+.section-summary {
+  background: linear-gradient(135deg, var(--accent) 0%, #6c63ff 100%);
+  color: #fff;
+  padding: 24px 28px;
+  border-radius: var(--radius);
+  margin: 28px 0;
+  box-shadow: var(--shadow-md);
+  line-height: 1.8;
+}
+.section-summary p { color: #fff; }
+.section-summary strong { color: #fff; }
+.section-summary p + p { margin-top: 14px; }
+
+.ref-list {
+  background: var(--bg-formula);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-top: 20px;
+  border: 1px solid var(--border);
+}
+.ref-list p {
+  margin-bottom: 10px;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+}
+
+.nav-toc {
+  background: var(--bg-toc);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin-bottom: 40px;
+  border: 1px solid var(--border);
+}
+.nav-toc strong {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.nav-toc a {
+  display: block;
+  padding: 5px 0;
+  font-size: 0.92em;
+  color: var(--text-secondary);
+  transition: color 0.2s, padding-left 0.2s;
+}
+.nav-toc a:hover {
+  color: var(--accent);
+  padding-left: 6px;
+}
+
+.figure {
+  text-align: center;
+  margin: 32px 0;
+}
+.figure img {
+  max-width: 100%;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+}
+.figure .caption {
+  margin-top: 12px;
+  font-size: 0.88em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+@media (prefers-color-scheme: dark) {
+  .figure img { filter: brightness(0.9) contrast(1.05); }
+}
+
+.keyword { color: #c678dd; }
+.function { color: #61afef; }
+.string { color: #98c379; }
+.comment { color: #5c6370; font-style: italic; }
+.number { color: #d19a66; }
+.class-name { color: #e5c07b; }
+.builtin { color: #56b6c2; }
+
+.back-to-top {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 42px;
+  height: 42px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.2em;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 100;
+}
+.back-to-top.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.back-to-top:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82em;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .container { padding: 32px 16px 60px; }
+  h1 { font-size: 1.7em; }
+  h2 { font-size: 1.3em; }
+  pre { padding: 16px; font-size: 0.8em; }
+  .formula { padding: 14px 16px; }
+  .algorithm-box { padding: 20px 18px; }
+  .back-to-top { bottom: 20px; right: 20px; width: 36px; height: 36px; font-size: 1em; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<div class="container">
+
+<h1>第 9 章 策略梯度算法</h1>
+
+<nav class="nav-toc">
+  <strong>目录</strong>
+  <a href="#sec91">9.1 简介</a>
+  <a href="#sec92">9.2 策略梯度</a>
+  <a href="#sec93">9.3 REINFORCE</a>
+  <a href="#sec94">9.4 REINFORCE 代码实践</a>
+  <a href="#sec95">9.5 小结</a>
+  <a href="#sec96">9.6 扩展阅读：策略梯度证明</a>
+  <a href="#sec97">9.7 参考文献</a>
+</nav>
+
+<!-- ==================== 9.1 简介 ==================== -->
+
+<h2 id="sec91">9.1 简介</h2>
+
+<p>本书之前介绍的 Q-learning、DQN 及 DQN 改进算法都是<strong>基于价值</strong>（value-based）的方法，其中 Q-learning 是处理有限状态的算法，而 DQN 可以用来解决连续状态的问题。在强化学习中，除了基于值函数的方法，还有一支非常经典的方法，那就是<strong>基于策略</strong>（policy-based）的方法。对比两者，基于值函数的方法主要是学习值函数，然后根据值函数导出一个策略，学习过程中并不存在一个显式的策略；而基于策略的方法则是直接显式地学习一个目标策略。策略梯度是基于策略的方法的基础，本章从策略梯度算法说起。</p>
+
+<!-- ==================== 9.2 策略梯度 ==================== -->
+
+<h2 id="sec92">9.2 策略梯度</h2>
+
+<p>基于策略的方法首先需要将策略参数化。假设目标策略 $\pi_\theta$ 是一个随机性策略，并且处处可微，其中 $\theta$ 是对应的参数。我们可以用一个线性模型或者神经网络模型来为这样一个策略函数建模，输入某个状态，然后输出一个动作的概率分布。我们的目标是要寻找一个最优策略并最大化这个策略在环境中的期望回报。我们将策略学习的目标函数定义为</p>
+
+<div class="formula">
+  $$J(\theta) = E_{s_0}[V^{\pi_\theta}(s_0)]$$
+</div>
+
+<p>其中，$s_0$ 表示初始状态。现在有了目标函数，我们将目标函数对策略 $\theta$ 求导，得到导数后，就可以用梯度上升方法来最大化这个目标函数，从而得到最优策略。</p>
+
+<p>我们在第 3 章讲解过策略 $\pi$ 下的状态访问分布，在此用 $\nu^{\pi}$ 表示。然后我们对目标函数求梯度，可以得到如下式子，更详细的推导过程将在 9.6 节给出。</p>
+
+<div class="formula">
+  $$\nabla_\theta J(\theta) = E_{s \sim \nu^{\pi_\theta}} \left[ E_{a \sim \pi_\theta(\cdot|s)} \left[ Q^{\pi_\theta}(s,a) \nabla_\theta \ln \pi_\theta(a|s) \right] \right]$$
+</div>
+
+<p>这个梯度可以用来更新策略。需要注意的是，因为上式中期望的下标是 $\pi_\theta$，所以策略梯度算法为<strong>在线策略</strong>（on-policy）算法，即必须使用当前策略 $\pi_\theta$ 采样得到的数据来计算梯度。直观理解一下策略梯度这个公式，可以发现在每一个状态下，梯度的修改是让策略更多地去采样到带来较高 $Q$ 值的动作，更少地去采样到带来较低 $Q$ 值的动作，如图 9-1 所示。</p>
+
+<div class="figure">
+  <img src="images/policy_gradient.png" alt="策略梯度示意图">
+  <div class="caption">图 9-1 策略梯度示意图</div>
+</div>
+
+<p>在计算策略梯度的公式中，我们需要用到 $Q^{\pi_\theta}(s,a)$，可以用多种方式对它进行估计。接下来要介绍的 REINFORCE 算法便是采用了蒙特卡洛方法来估计 $Q^{\pi_\theta}(s,a)$，对于一个有限步数的环境来说，REINFORCE 算法中的策略梯度为：</p>
+
+<div class="formula">
+  $$\nabla_\theta J(\theta) = E_{\pi_\theta} \left[ \sum_{t=0}^{T-1} \nabla_\theta \ln \pi_\theta(a_t|s_t) \left( \sum_{t'=t}^{T-1} \gamma^{t'-t} r_{t'} \right) \right]$$
+</div>
+
+<p>其中，$T$ 是和环境交互的最大步数。例如，在车杆环境中，$T = 200$。</p>
+
+<!-- ==================== 9.3 REINFORCE ==================== -->
+
+<h2 id="sec93">9.3 REINFORCE</h2>
+
+<p>REINFORCE 算法的具体算法流程如下：</p>
+
+<div class="algorithm-box">
+  <p><strong>REINFORCE</strong></p>
+  <p>初始化策略参数 $\theta$</p>
+  <p><strong>for</strong> 序列 $e = 1, 2, \ldots$ <strong>do</strong> :</p>
+  <p style="padding-left:20px;">用当前策略 $\pi_\theta$ 采样轨迹 $\{s_0, a_0, r_0, s_1, a_1, r_1, \ldots, s_{T-1}, a_{T-1}, r_{T-1}, s_T\}$</p>
+  <p style="padding-left:20px;">计算当前轨迹每个时刻 $t$ 往后的回报 $\sum_{t'=t}^{T-1} \gamma^{t'-t} r_{t'}$，记为 $G_t$</p>
+  <p style="padding-left:20px;">对 $\theta$ 进行更新，$\theta \leftarrow \theta + \alpha \sum_{t=0}^{T-1} G_t \nabla_\theta \ln \pi_\theta(a_t|s_t)$</p>
+  <p><strong>end for</strong></p>
+</div>
+
+<p>这便是 REINFORCE 算法的全部流程了。接下来让我们来用代码来实现它，看看效果如何吧！</p>
+
+<!-- ==================== 9.4 REINFORCE 代码实践 ==================== -->
+
+<h2 id="sec94">9.4 REINFORCE 代码实践</h2>
+
+<p>我们在车杆环境中进行 REINFORCE 算法的实验。</p>
+
+<h3>导入依赖</h3>
+
+<pre><code><span class="keyword">import</span> gym
+<span class="keyword">import</span> torch
+<span class="keyword">import</span> torch.nn.functional <span class="keyword">as</span> F
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+<span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt
+<span class="keyword">from</span> tqdm <span class="keyword">import</span> tqdm
+<span class="keyword">import</span> rl_utils</code></pre>
+
+<p>首先定义策略网络 <span class="inline-code">PolicyNet</span>，其输入是某个状态，输出则是该状态下的动作概率分布，这里采用在离散动作空间上的 <span class="inline-code">softmax()</span> 函数来实现一个可学习的<strong>多项分布</strong>（multinomial distribution）。</p>
+
+<h3>策略网络</h3>
+
+<pre><code><span class="keyword">class</span> <span class="class-name">PolicyNet</span>(torch.nn.Module):
+    <span class="keyword">def</span> <span class="function">__init__</span>(<span class="builtin">self</span>, state_dim, hidden_dim, action_dim):
+        <span class="builtin">super</span>(PolicyNet, <span class="builtin">self</span>).__init__()
+        <span class="builtin">self</span>.fc1 = torch.nn.Linear(state_dim, hidden_dim)
+        <span class="builtin">self</span>.fc2 = torch.nn.Linear(hidden_dim, action_dim)
+
+    <span class="keyword">def</span> <span class="function">forward</span>(<span class="builtin">self</span>, x):
+        x = F.relu(<span class="builtin">self</span>.fc1(x))
+        <span class="keyword">return</span> F.softmax(<span class="builtin">self</span>.fc2(x), dim=<span class="number">1</span>)</code></pre>
+
+<p>再定义我们的 REINFORCE 算法。在函数 <span class="inline-code">take_action()</span> 中，我们通过动作概率分布对离散的动作进行采样。在更新过程中，我们按照算法将损失函数写为策略回报的负数，即 $-\sum_t G_t \ln \pi_\theta(a_t|s_t)$，对 $\theta$ 求导后就可以通过梯度下降来更新策略。</p>
+
+<h3>REINFORCE 智能体</h3>
+
+<pre><code><span class="keyword">class</span> <span class="class-name">REINFORCE</span>:
+    <span class="keyword">def</span> <span class="function">__init__</span>(<span class="builtin">self</span>, state_dim, hidden_dim, action_dim, learning_rate, gamma,
+                 device):
+        <span class="builtin">self</span>.policy_net = PolicyNet(state_dim, hidden_dim,
+                                    action_dim).to(device)
+        <span class="builtin">self</span>.optimizer = torch.optim.Adam(<span class="builtin">self</span>.policy_net.parameters(),
+                                          lr=learning_rate)  <span class="comment"># 使用Adam优化器</span>
+        <span class="builtin">self</span>.gamma = gamma  <span class="comment"># 折扣因子</span>
+        <span class="builtin">self</span>.device = device
+
+    <span class="keyword">def</span> <span class="function">take_action</span>(<span class="builtin">self</span>, state):  <span class="comment"># 根据动作概率分布随机采样</span>
+        state = torch.tensor([state], dtype=torch.float).to(<span class="builtin">self</span>.device)
+        probs = <span class="builtin">self</span>.policy_net(state)
+        action_dist = torch.distributions.Categorical(probs)
+        action = action_dist.sample()
+        <span class="keyword">return</span> action.item()
+
+    <span class="keyword">def</span> <span class="function">update</span>(<span class="builtin">self</span>, transition_dict):
+        reward_list = transition_dict[<span class="string">'rewards'</span>]
+        state_list = transition_dict[<span class="string">'states'</span>]
+        action_list = transition_dict[<span class="string">'actions'</span>]
+
+        G = <span class="number">0</span>
+        <span class="builtin">self</span>.optimizer.zero_grad()
+        <span class="keyword">for</span> i <span class="keyword">in</span> <span class="builtin">reversed</span>(<span class="builtin">range</span>(<span class="builtin">len</span>(reward_list))):  <span class="comment"># 从最后一步算起</span>
+            reward = reward_list[i]
+            state = torch.tensor([state_list[i]],
+                                 dtype=torch.float).to(<span class="builtin">self</span>.device)
+            action = torch.tensor([action_list[i]]).view(-<span class="number">1</span>, <span class="number">1</span>).to(<span class="builtin">self</span>.device)
+            log_prob = torch.log(<span class="builtin">self</span>.policy_net(state).gather(<span class="number">1</span>, action))
+            G = <span class="builtin">self</span>.gamma * G + reward
+            loss = -log_prob * G  <span class="comment"># 每一步的损失函数</span>
+            loss.backward()  <span class="comment"># 反向传播计算梯度</span>
+        <span class="builtin">self</span>.optimizer.step()  <span class="comment"># 梯度下降</span></code></pre>
+
+<p>定义好策略，我们就可以开始实验了，看看 REINFORCE 算法在车杆环境上表现如何吧！</p>
+
+<h3>训练循环</h3>
+
+<pre><code>learning_rate = <span class="number">1e-3</span>
+num_episodes = <span class="number">1000</span>
+hidden_dim = <span class="number">128</span>
+gamma = <span class="number">0.98</span>
+device = torch.device(<span class="string">"cuda"</span>) <span class="keyword">if</span> torch.cuda.is_available() <span class="keyword">else</span> torch.device(
+    <span class="string">"cpu"</span>)
+
+env_name = <span class="string">"CartPole-v0"</span>
+env = gym.make(env_name)
+env.seed(<span class="number">0</span>)
+torch.manual_seed(<span class="number">0</span>)
+state_dim = env.observation_space.shape[<span class="number">0</span>]
+action_dim = env.action_space.n
+agent = REINFORCE(state_dim, hidden_dim, action_dim, learning_rate, gamma,
+                  device)
+
+return_list = []
+<span class="keyword">for</span> i <span class="keyword">in</span> <span class="builtin">range</span>(<span class="number">10</span>):
+    <span class="keyword">with</span> tqdm(total=<span class="builtin">int</span>(num_episodes / <span class="number">10</span>), desc=<span class="string">'Iteration %d'</span> % i) <span class="keyword">as</span> pbar:
+        <span class="keyword">for</span> i_episode <span class="keyword">in</span> <span class="builtin">range</span>(<span class="builtin">int</span>(num_episodes / <span class="number">10</span>)):
+            episode_return = <span class="number">0</span>
+            transition_dict = {
+                <span class="string">'states'</span>: [],
+                <span class="string">'actions'</span>: [],
+                <span class="string">'next_states'</span>: [],
+                <span class="string">'rewards'</span>: [],
+                <span class="string">'dones'</span>: []
+            }
+            state = env.reset()
+            done = <span class="keyword">False</span>
+            <span class="keyword">while</span> <span class="keyword">not</span> done:
+                action = agent.take_action(state)
+                next_state, reward, done, _ = env.step(action)
+                transition_dict[<span class="string">'states'</span>].append(state)
+                transition_dict[<span class="string">'actions'</span>].append(action)
+                transition_dict[<span class="string">'next_states'</span>].append(next_state)
+                transition_dict[<span class="string">'rewards'</span>].append(reward)
+                transition_dict[<span class="string">'dones'</span>].append(done)
+                state = next_state
+                episode_return += reward
+            return_list.append(episode_return)
+            agent.update(transition_dict)
+            <span class="keyword">if</span> (i_episode + <span class="number">1</span>) % <span class="number">10</span> == <span class="number">0</span>:
+                pbar.set_postfix({
+                    <span class="string">'episode'</span>:
+                    <span class="string">'%d'</span> % (num_episodes / <span class="number">10</span> * i + i_episode + <span class="number">1</span>),
+                    <span class="string">'return'</span>:
+                    <span class="string">'%.3f'</span> % np.mean(return_list[-<span class="number">10</span>:])
+                })
+            pbar.update(<span class="number">1</span>)</code></pre>
+
+<h3>训练输出</h3>
+
+<pre><code>Iteration 0: 100%|███████████████████████████████████████| 100/100 [00:02&lt;00:00, 47.36it/s, episode=100, return=55.500]
+Iteration 1: 100%|███████████████████████████████████████| 100/100 [00:04&lt;00:00, 21.26it/s, episode=200, return=75.300]
+Iteration 2: 100%|██████████████████████████████████████| 100/100 [00:09&lt;00:00, 10.55it/s, episode=300, return=178.800]
+Iteration 3: 100%|██████████████████████████████████████| 100/100 [00:11&lt;00:00,  8.74it/s, episode=400, return=164.600]
+Iteration 4: 100%|██████████████████████████████████████| 100/100 [00:11&lt;00:00,  8.74it/s, episode=500, return=156.500]
+Iteration 5: 100%|██████████████████████████████████████| 100/100 [00:11&lt;00:00,  8.54it/s, episode=600, return=187.400]
+Iteration 6: 100%|██████████████████████████████████████| 100/100 [00:11&lt;00:00,  8.52it/s, episode=700, return=194.500]
+Iteration 7: 100%|██████████████████████████████████████| 100/100 [00:13&lt;00:00,  7.57it/s, episode=800, return=200.000]
+Iteration 8: 100%|██████████████████████████████████████| 100/100 [00:12&lt;00:00,  7.84it/s, episode=900, return=200.000]
+Iteration 9: 100%|█████████████████████████████████████| 100/100 [00:12&lt;00:00,  7.89it/s, episode=1000, return=186.100]</code></pre>
+
+<p>在 CartPole-v0 环境中，满分就是 200 分，我们发现 REINFORCE 算法效果很好，可以达到 200 分。接下来我们绘制训练过程中每一条轨迹的回报变化图。由于回报抖动比较大，往往会进行平滑处理。</p>
+
+<h3>绘制结果</h3>
+
+<pre><code>episodes_list = <span class="builtin">list</span>(<span class="builtin">range</span>(<span class="builtin">len</span>(return_list)))
+plt.plot(episodes_list, return_list)
+plt.xlabel(<span class="string">'Episodes'</span>)
+plt.ylabel(<span class="string">'Returns'</span>)
+plt.title(<span class="string">'REINFORCE on {}'</span>.format(env_name))
+plt.show()
+
+mv_return = rl_utils.moving_average(return_list, <span class="number">9</span>)
+plt.plot(episodes_list, mv_return)
+plt.xlabel(<span class="string">'Episodes'</span>)
+plt.ylabel(<span class="string">'Returns'</span>)
+plt.title(<span class="string">'REINFORCE on {}'</span>.format(env_name))
+plt.show()</code></pre>
+
+<div class="figure">
+  <img src="images/output_9_4_1.png" alt="REINFORCE训练回报曲线">
+  <div class="caption">图 9-2 REINFORCE 在 CartPole-v0 环境上的训练回报曲线</div>
+</div>
+
+<div class="figure">
+  <img src="images/output_9_4_2.png" alt="REINFORCE训练回报移动平均曲线">
+  <div class="caption">图 9-3 REINFORCE 在 CartPole-v0 上的移动平均回报曲线</div>
+</div>
+
+<p>可以看到，随着收集到的轨迹越来越多，REINFORCE 算法有效地学习到了最优策略。不过，相比于前面的 DQN 算法，REINFORCE 算法使用了更多的序列，这是因为 REINFORCE 算法是一个在线策略算法，之前收集到的轨迹数据不会被再次利用。此外，REINFORCE 算法的性能也有一定程度的波动，这主要是因为每条采样轨迹的回报值波动比较大，这也是 REINFORCE 算法主要的不足。</p>
+
+<!-- ==================== 9.5 小结 ==================== -->
+
+<h2 id="sec95">9.5 小结</h2>
+
+<div class="section-summary">
+  <p>REINFORCE 算法是策略梯度乃至强化学习的典型代表，智能体根据当前策略直接和环境交互，通过采样得到的轨迹数据直接计算出策略参数的梯度，进而更新当前策略，使其向最大化策略期望回报的目标靠近。这种学习方式是典型的从交互中学习，并且其优化的目标（即策略期望回报）正是最终所使用策略的性能，这比基于价值的强化学习算法的优化目标（一般是时序差分误差的最小化）要更加直接。</p>
+  <p>REINFORCE 算法理论上是能保证局部最优的，它实际上是借助蒙特卡洛方法采样轨迹来估计动作价值，这种做法的一大优点是可以得到无偏的梯度。但是，正是因为使用了蒙特卡洛方法，REINFORCE 算法的梯度估计的方差很大，可能会造成一定程度上的不稳定，这也是第 10 章将介绍的 Actor-Critic 算法要解决的问题。</p>
+</div>
+
+<!-- ==================== 9.6 扩展阅读：策略梯度证明 ==================== -->
+
+<h2 id="sec96">9.6 扩展阅读：策略梯度证明</h2>
+
+<p>策略梯度定理是强化学习中的重要理论。本节我们来证明。</p>
+
+<p>先从状态价值函数的推导开始：</p>
+
+<div class="formula">
+  $$\begin{aligned}
+  \nabla_\theta V^{\pi_\theta}(s) &= \nabla_\theta \left[ \sum_a \pi_\theta(a|s) Q^{\pi_\theta}(s,a) \right] \\
+  &= \sum_a \left[ \nabla_\theta \pi_\theta(a|s) Q^{\pi_\theta}(s,a) + \pi_\theta(a|s) \nabla_\theta Q^{\pi_\theta}(s,a) \right] \\
+  &= \sum_a \left[ \nabla_\theta \pi_\theta(a|s) Q^{\pi_\theta}(s,a) + \pi_\theta(a|s) \nabla_\theta \sum_{s'} P(s'|s,a) \left( r(s,a) + \gamma V^{\pi_\theta}(s') \right) \right] \\
+  &= \sum_a \left[ \nabla_\theta \pi_\theta(a|s) Q^{\pi_\theta}(s,a) + \pi_\theta(a|s) \sum_{s'} P(s'|s,a) \gamma \nabla_\theta V^{\pi_\theta}(s') \right]
+  \end{aligned}$$
+</div>
+
+<p>为了简化表示，我们让 $\phi(s) = \sum_a \nabla_\theta \pi_\theta(a|s) Q^{\pi_\theta}(s,a)$，定义 $d^{\pi_\theta}(s \to s', k)$ 为策略 $\pi_\theta$ 从状态 $s$ 出发 $k$ 步后到达状态 $s'$ 的概率。我们继续推导：</p>
+
+<div class="formula">
+  $$\begin{aligned}
+  \nabla_\theta V^{\pi_\theta}(s) &= \phi(s) + \gamma \sum_{s'} \sum_a \pi_\theta(a|s) P(s'|s,a) \nabla_\theta V^{\pi_\theta}(s') \\
+  &= \phi(s) + \gamma \sum_{s'} d^{\pi_\theta}(s \to s', 1) \nabla_\theta V^{\pi_\theta}(s') \\
+  &= \phi(s) + \gamma \sum_{s'} d^{\pi_\theta}(s \to s', 1) \left[ \phi(s') + \gamma \sum_{s''} d^{\pi_\theta}(s' \to s'', 1) \nabla_\theta V^{\pi_\theta}(s'') \right] \\
+  &= \phi(s) + \gamma \sum_{s'} d^{\pi_\theta}(s \to s', 1) \phi(s') + \gamma^2 \sum_{s''} d^{\pi_\theta}(s \to s'', 2) \nabla_\theta V^{\pi_\theta}(s'') \\
+  &= \sum_{x \in \mathcal{S}} \sum_{k=0}^{\infty} \gamma^k d^{\pi_\theta}(s \to x, k) \phi(x)
+  \end{aligned}$$
+</div>
+
+<p>定义 $\nu^{\pi_\theta}(s) = \sum_{k=0}^{\infty} \gamma^k d^{\pi_\theta}(s_0 \to s, k)$。至此，回到目标函数：</p>
+
+<div class="formula">
+  $$\begin{aligned}
+  \nabla_\theta J(\theta) &= \nabla_\theta V^{\pi_\theta}(s_0) = \sum_s \nu^{\pi_\theta}(s) \sum_a \nabla_\theta \pi_\theta(a|s) Q^{\pi_\theta}(s,a) \\
+  &= \sum_s \nu^{\pi_\theta}(s) \sum_a \pi_\theta(a|s) Q^{\pi_\theta}(s,a) \frac{\nabla_\theta \pi_\theta(a|s)}{\pi_\theta(a|s)} \\
+  &= E_{s \sim \nu^{\pi_\theta}} \left[ E_{a \sim \pi_\theta(\cdot|s)} \left[ Q^{\pi_\theta}(s,a) \nabla_\theta \ln \pi_\theta(a|s) \right] \right]
+  \end{aligned}$$
+</div>
+
+<p>证明完毕！</p>
+
+<!-- ==================== 9.7 参考文献 ==================== -->
+
+<h2 id="sec97">9.7 参考文献</h2>
+
+<div class="ref-list">
+  <p>[1] SUTTON R S, MCALLESTER D A, SINGH S P, et al. Policy gradient methods for reinforcement learning with function approximation [C] // Advances in neural information processing systems, 2000: 1057-1063.</p>
+</div>
+
+<div class="footer">
+  内容来源：《动手学强化学习》(hrl.boyuai.com) | 离线版本
+</div>
+
+</div>
+</div>
+
+<button class="back-to-top" onclick="window.scrollTo({top:0})" aria-label="回到顶部">↑</button>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  renderMathInElement(document.body, {
+    delimiters: [
+      {left: "$$", right: "$$", display: true},
+      {left: "$", right: "$", display: false}
+    ],
+    throwOnError: false
+  });
+
+  const btn = document.querySelector('.back-to-top');
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', window.scrollY > 400);
+  });
+});
+</script>
+</body>
+</html>

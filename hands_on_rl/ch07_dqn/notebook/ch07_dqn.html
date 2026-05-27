@@ -3,157 +3,279 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ch07 DQN</title>
-<link rel="stylesheet" href="katex.min.css">
+<title>Ch07 DQN 算法 — 动手学强化学习</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=JetBrains+Mono:wght@400;500&family=Source+Han+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
 <style>
+:root {
+  --bg-primary: #faf9f7;
+  --bg-surface: #ffffff;
+  --bg-code: #1a1b26;
+  --bg-formula: #f5f3ef;
+  --bg-toc: #f0ede8;
+  --bg-algo: #eef2ff;
+  --text-primary: #2c2c2c;
+  --text-secondary: #5a5a5a;
+  --text-muted: #8a8a8a;
+  --accent: #3d5af1;
+  --accent-bg: rgba(61, 90, 241, 0.08);
+  --border: #e5e2dc;
+  --border-light: #f0ede8;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+  --radius: 10px;
+  --font-serif: "Noto Serif SC", "Songti SC", serif;
+  --font-sans: "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #16161e;
+    --bg-surface: #1e1e2e;
+    --bg-code: #11111b;
+    --bg-formula: #1e1e2e;
+    --bg-toc: #1a1a28;
+    --bg-algo: #1a1a2e;
+    --text-primary: #e0ddd5;
+    --text-secondary: #a9a6a0;
+    --text-muted: #6c6c6c;
+    --accent: #7aa2f7;
+    --accent-bg: rgba(122, 162, 247, 0.1);
+    --border: #2a2a3c;
+    --border-light: #232336;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+  }
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
-  line-height: 1.8;
-  color: #333;
-  background: #f8f9fa;
+  font-family: var(--font-sans);
+  line-height: 1.9;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
 }
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr min(780px, 90vw) 1fr;
+  gap: 0;
+}
+.layout > * { grid-column: 2; }
+
 .container {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 40px 24px;
-  background: #fff;
+  padding: 60px 32px 80px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
   min-height: 100vh;
-  box-shadow: 0 0 20px rgba(0,0,0,0.05);
 }
+
 h1 {
-  font-size: 2em;
-  color: #1a1a2e;
-  border-bottom: 3px solid #4361ee;
-  padding-bottom: 12px;
-  margin-bottom: 32px;
+  font-family: var(--font-serif);
+  font-size: 2.2em;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 40px;
+  letter-spacing: -0.02em;
+  position: relative;
+  padding-bottom: 16px;
 }
+h1::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 60px; height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
 h2 {
+  font-family: var(--font-serif);
   font-size: 1.5em;
-  color: #2d3436;
-  margin-top: 48px;
-  margin-bottom: 16px;
-  padding-left: 12px;
-  border-left: 4px solid #4361ee;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 56px;
+  margin-bottom: 20px;
+  padding-left: 16px;
+  border-left: 3px solid var(--accent);
 }
+
 h3 {
-  font-size: 1.2em;
-  color: #4361ee;
-  margin-top: 32px;
-  margin-bottom: 12px;
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 36px;
+  margin-bottom: 14px;
+  letter-spacing: 0.02em;
+  font-family: var(--font-sans);
 }
+
 p {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   text-align: justify;
+  color: var(--text-primary);
 }
+
+a { color: var(--accent); text-decoration: none; transition: opacity 0.2s; }
+a:hover { opacity: 0.75; }
+
+pre {
+  background: var(--bg-code);
+  color: #cdd6f4;
+  padding: 22px 24px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 18px 0 26px;
+  font-size: 0.85em;
+  line-height: 1.7;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+}
+
+code { font-family: var(--font-mono); font-size: 0.92em; }
+
+.inline-code {
+  background: var(--accent-bg);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.88em;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.formula {
+  background: var(--bg-formula);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 24px;
+  margin: 18px 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
   margin: 16px 0 24px;
   font-size: 0.95em;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 th, td {
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border);
   padding: 10px 14px;
   text-align: center;
 }
 th {
-  background: #4361ee;
+  background: var(--accent);
   color: #fff;
   font-weight: 600;
 }
-tr:nth-child(even) { background: #f1f3f5; }
-pre {
-  background: #1e1e2e;
-  color: #cdd6f4;
-  padding: 20px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 16px 0 24px;
-  font-size: 0.88em;
-  line-height: 1.6;
-}
-code {
-  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
-}
-.inline-code {
-  background: #e8eaed;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.9em;
-  color: #d63384;
-}
-.formula {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  padding: 16px 20px;
-  margin: 16px 0;
-  font-family: "Times New Roman", serif;
-  font-size: 1.1em;
-  text-align: center;
-  overflow-x: auto;
-}
+tr:nth-child(even) { background: var(--bg-formula); }
+
 .algorithm-box {
-  background: #f0f4ff;
-  border: 1px solid #4361ee;
-  border-radius: 8px;
-  padding: 20px 24px;
-  margin: 20px 0;
+  background: var(--bg-algo);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin: 24px 0;
+  position: relative;
+  line-height: 1.5;
 }
-.algorithm-box p { margin-bottom: 8px; }
-ul, ol {
-  margin: 12px 0 16px 24px;
-}
-li { margin-bottom: 8px; }
-strong { color: #1a1a2e; }
-.highlight { color: #4361ee; font-weight: 600; }
-.section-summary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.algorithm-box::before {
+  content: 'ALGORITHM';
+  position: absolute;
+  top: -10px; left: 20px;
+  background: var(--accent);
   color: #fff;
-  padding: 20px 24px;
-  border-radius: 8px;
-  margin: 20px 0;
+  font-size: 0.7em;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
 }
+.algorithm-box p { margin-bottom: 6px; line-height: 1.5; text-align: left; }
+
+ul, ol { margin: 14px 0 18px 28px; }
+li { margin-bottom: 10px; }
+
+strong { color: var(--text-primary); font-weight: 700; }
+
+.section-summary {
+  background: linear-gradient(135deg, var(--accent) 0%, #6c63ff 100%);
+  color: #fff;
+  padding: 24px 28px;
+  border-radius: var(--radius);
+  margin: 28px 0;
+  box-shadow: var(--shadow-md);
+  line-height: 1.8;
+}
+.section-summary p { color: #fff; }
 .section-summary strong { color: #fff; }
+.section-summary p + p { margin-top: 14px; }
+
 .ref-list {
-  background: #f8f9fa;
-  border-radius: 6px;
-  padding: 16px 20px;
-  margin-top: 16px;
-}
-.ref-list p {
-  margin-bottom: 8px;
-  font-size: 0.92em;
-}
-.nav-toc {
-  background: #f0f4ff;
-  border-radius: 8px;
+  background: var(--bg-formula);
+  border-radius: var(--radius);
   padding: 20px 24px;
-  margin-bottom: 32px;
+  margin-top: 20px;
+  border: 1px solid var(--border);
+}
+.ref-list p { margin-bottom: 10px; font-size: 0.9em; color: var(--text-secondary); }
+
+.nav-toc {
+  background: var(--bg-toc);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin-bottom: 40px;
+  border: 1px solid var(--border);
+}
+.nav-toc strong {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
 }
 .nav-toc a {
-  color: #4361ee;
-  text-decoration: none;
   display: block;
-  padding: 4px 0;
+  padding: 5px 0;
+  font-size: 0.92em;
+  color: var(--text-secondary);
+  transition: color 0.2s, padding-left 0.2s;
 }
-.nav-toc a:hover { text-decoration: underline; }
-.nav-toc .sub { padding-left: 20px; font-size: 0.92em; }
-.figure {
-  text-align: center;
-  margin: 24px 0;
-}
+.nav-toc a:hover { color: var(--accent); padding-left: 6px; }
+.nav-toc .sub { padding-left: 20px; font-size: 0.88em; }
+
+.figure { text-align: center; margin: 32px 0; }
 .figure img {
   max-width: 100%;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
 }
 .figure .caption {
-  margin-top: 10px;
-  font-size: 0.9em;
-  color: #666;
+  margin-top: 12px;
+  font-size: 0.88em;
+  color: var(--text-muted);
+  font-style: italic;
 }
+@media (prefers-color-scheme: dark) {
+  .figure img { filter: brightness(0.9) contrast(1.05); }
+}
+
 .keyword { color: #c678dd; }
 .function { color: #61afef; }
 .string { color: #98c379; }
@@ -161,14 +283,53 @@ strong { color: #1a1a2e; }
 .number { color: #d19a66; }
 .class-name { color: #e5c07b; }
 .builtin { color: #56b6c2; }
+
+.back-to-top {
+  position: fixed;
+  bottom: 32px; right: 32px;
+  width: 42px; height: 42px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.2em;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 100;
+}
+.back-to-top.visible { opacity: 1; transform: translateY(0); }
+.back-to-top:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+.footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82em;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .container { padding: 32px 16px 60px; }
+  h1 { font-size: 1.7em; }
+  h2 { font-size: 1.3em; }
+  pre { padding: 16px; font-size: 0.8em; }
+  .formula { padding: 14px 16px; }
+  .algorithm-box { padding: 20px 18px; }
+  .back-to-top { bottom: 20px; right: 20px; width: 36px; height: 36px; font-size: 1em; }
+}
 </style>
 </head>
 <body>
+<div class="layout">
 <div class="container">
 
 <h1>第 7 章 DQN 算法</h1>
 
-<div class="nav-toc">
+<nav class="nav-toc">
   <strong>目录</strong>
   <a href="#sec71">7.1 简介</a>
   <a href="#sec72">7.2 CartPole 环境</a>
@@ -179,7 +340,7 @@ strong { color: #1a1a2e; }
   <a href="#sec75">7.5 以图像为输入的 DQN 算法</a>
   <a href="#sec76">7.6 小结</a>
   <a href="#sec77">7.7 参考文献</a>
-</div>
+</nav>
 
 <!-- ==================== 7.1 简介 ==================== -->
 
@@ -263,7 +424,7 @@ strong { color: #1a1a2e; }
 <h3>DQN 算法流程</h3>
 
 <div class="algorithm-box">
-  <p><strong>算法：DQN</strong></p>
+  <p><strong>DQN</strong></p>
   <p>用随机的网络参数 $\omega$ 初始化网络</p>
   <p>复制相同的参数来初始化目标网络 $\omega^{-}$</p>
   <p>初始化经验回放池</p>
@@ -511,7 +672,7 @@ plt.show()</code></pre>
 
 <div class="section-summary">
   <p>本章讲解了 DQN 算法，其主要思想是用一个神经网络来表示最优策略的函数，然后利用 Q-learning 的思想进行参数更新。为了保证训练的稳定性和高效性，DQN 引入了<strong>经验回放</strong>和<strong>目标网络</strong>两大模块。</p>
-  <p style="margin-top:12px;">在 2013 年的 NIPS 深度学习研讨会上，DeepMind 公司的研究团队发表了 DQN 论文，首次展示了通过卷积神经网络接受像素输入来玩各种雅达利游戏的强化学习算法，由此拉开了深度强化学习的序幕。DQN 是深度强化学习的基础，掌握了该算法才算是真正进入了深度强化学习领域，本书还有更多深度强化学习算法等待读者探索。</p>
+  <p>在 2013 年的 NIPS 深度学习研讨会上，DeepMind 公司的研究团队发表了 DQN 论文，首次展示了通过卷积神经网络接受像素输入来玩各种雅达利游戏的强化学习算法，由此拉开了深度强化学习的序幕。DQN 是深度强化学习的基础，掌握了该算法才算是真正进入了深度强化学习领域，本书还有更多深度强化学习算法等待读者探索。</p>
 </div>
 
 <!-- ==================== 7.7 参考文献 ==================== -->
@@ -523,14 +684,17 @@ plt.show()</code></pre>
   <p>[2] VOLODYMYR M, KAVUKCUOGLU K, SILVER D, et al. Playing atari with deep reinforcement learning [C]//<em>NIPS Deep Learning Workshop</em>, 2013.</p>
 </div>
 
-<br>
-<p style="text-align:center; color:#999; font-size:0.85em; margin-top:40px; border-top:1px solid #eee; padding-top:20px;">
+<div class="footer">
   内容来源：《动手学强化学习》(hrl.boyuai.com) | 离线版本
-</p>
+</div>
 
 </div>
-<script src="katex.min.js"></script>
-<script src="auto-render.min.js"></script>
+</div>
+
+<button class="back-to-top" onclick="window.scrollTo({top:0})" aria-label="回到顶部">↑</button>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   renderMathInElement(document.body, {
@@ -539,6 +703,11 @@ document.addEventListener("DOMContentLoaded", function() {
       {left: "$", right: "$", display: false}
     ],
     throwOnError: false
+  });
+
+  const btn = document.querySelector('.back-to-top');
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', window.scrollY > 400);
   });
 });
 </script>

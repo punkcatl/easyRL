@@ -20,3 +20,5 @@ docs/claude_cli_model_switching.md
 **/notebook/katex.min.js
 **/notebook/auto-render.min.js
 .trae/
+.codegraph/
+.mcp.json

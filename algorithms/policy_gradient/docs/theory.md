@@ -23,8 +23,8 @@ $$L = -\sum_{t=0}^{T} \log \pi_\theta(a_t|s_t) \cdot G_t$$
 | Formula | Code location |
 |---------|---------------|
 | $\pi_\theta$ — policy network (state → action probs) | `agent.py:L8-L23` — `PolicyNetwork` with Softmax output |
-| Sampling $a \sim \pi_\theta(\cdot|s)$ | `agent.py:L53-L54` — `Categorical(probs)` then `dist.sample()` |
-| Storing $\log \pi_\theta(a_t|s_t)$ | `agent.py:L55` — `self.log_probs.append(dist.log_prob(action))` |
+| Sampling $a \sim \pi_\theta(\cdot\mid s)$ | `agent.py:L53-L54` — `Categorical(probs)` then `dist.sample()` |
+| Storing $\log \pi_\theta(a_t\mid s_t)$ | `agent.py:L55` — `self.log_probs.append(dist.log_prob(action))` |
 | Computing $G_t$ (discounted returns) | `agent.py:L66-L69` — reverse loop accumulating `G = r + gamma * G` |
 | Normalizing returns | `agent.py:L74` — `(returns - mean) / (std + eps)` |
 | Loss: $-\log\pi \cdot G_t$ | `agent.py:L79` — `loss += -log_prob * G` |
@@ -79,8 +79,8 @@ $$L = -\sum_{t=0}^{T} \log \pi_\theta(a_t|s_t) \cdot G_t$$
 | 公式 | 代码位置 |
 |------|---------|
 | $\pi_\theta$ — 策略网络（状态 → 动作概率） | `agent.py:L8-L23` — 带 Softmax 输出的 `PolicyNetwork` |
-| 采样 $a \sim \pi_\theta(\cdot|s)$ | `agent.py:L53-L54` — `Categorical(probs)` 然后 `dist.sample()` |
-| 存储 $\log \pi_\theta(a_t|s_t)$ | `agent.py:L55` — `self.log_probs.append(dist.log_prob(action))` |
+| 采样 $a \sim \pi_\theta(\cdot\mid s)$ | `agent.py:L53-L54` — `Categorical(probs)` 然后 `dist.sample()` |
+| 存储 $\log \pi_\theta(a_t\mid s_t)$ | `agent.py:L55` — `self.log_probs.append(dist.log_prob(action))` |
 | 计算 $G_t$（折扣回报） | `agent.py:L66-L69` — 反向循环累加 `G = r + gamma * G` |
 | 回报归一化 | `agent.py:L74` — `(returns - mean) / (std + eps)` |
 | 损失: $-\log\pi \cdot G_t$ | `agent.py:L79` — `loss += -log_prob * G` |

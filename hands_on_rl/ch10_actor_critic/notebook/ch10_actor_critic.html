@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ch10 Actor-Critic</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=JetBrains+Mono:wght@400;500&family=Source+Han+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #faf9f7;
+  --bg-surface: #ffffff;
+  --bg-code: #1a1b26;
+  --bg-formula: #f5f3ef;
+  --bg-toc: #f0ede8;
+  --bg-algo: #eef2ff;
+  --text-primary: #2c2c2c;
+  --text-secondary: #5a5a5a;
+  --text-muted: #8a8a8a;
+  --accent: #3d5af1;
+  --accent-bg: rgba(61, 90, 241, 0.08);
+  --border: #e5e2dc;
+  --border-light: #f0ede8;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+  --radius: 10px;
+  --font-serif: "Noto Serif SC", "Songti SC", serif;
+  --font-sans: "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #16161e;
+    --bg-surface: #1e1e2e;
+    --bg-code: #11111b;
+    --bg-formula: #1e1e2e;
+    --bg-toc: #1a1a28;
+    --bg-algo: #1a1a2e;
+    --text-primary: #e0ddd5;
+    --text-secondary: #a9a6a0;
+    --text-muted: #6c6c6c;
+    --accent: #7aa2f7;
+    --accent-bg: rgba(122, 162, 247, 0.1);
+    --border: #2a2a3c;
+    --border-light: #232336;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.9;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr min(780px, 90vw) 1fr;
+  gap: 0;
+}
+
+.layout > * { grid-column: 2; }
+
+.container {
+  padding: 60px 32px 80px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+  min-height: 100vh;
+}
+
+h1 {
+  font-family: var(--font-serif);
+  font-size: 2.2em;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 40px;
+  letter-spacing: -0.02em;
+  position: relative;
+  padding-bottom: 16px;
+}
+h1::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+h2 {
+  font-family: var(--font-serif);
+  font-size: 1.5em;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 56px;
+  margin-bottom: 20px;
+  padding-left: 16px;
+  border-left: 3px solid var(--accent);
+}
+
+h3 {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 36px;
+  margin-bottom: 14px;
+  letter-spacing: 0.02em;
+  font-family: var(--font-sans);
+}
+
+p {
+  margin-bottom: 18px;
+  text-align: justify;
+  color: var(--text-primary);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+a:hover { opacity: 0.75; }
+
+pre {
+  background: var(--bg-code);
+  color: #cdd6f4;
+  padding: 22px 24px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 18px 0 26px;
+  font-size: 0.85em;
+  line-height: 1.7;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.inline-code {
+  background: var(--accent-bg);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.88em;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.formula {
+  background: var(--bg-formula);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 24px;
+  margin: 18px 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.algorithm-box {
+  background: var(--bg-algo);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin: 24px 0;
+  position: relative;
+  line-height: 1.5;
+}
+.algorithm-box::before {
+  content: 'ALGORITHM';
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7em;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+}
+.algorithm-box p { margin-bottom: 6px; line-height: 1.5; text-align: left; }
+
+ul, ol { margin: 14px 0 18px 28px; }
+li { margin-bottom: 10px; }
+
+strong { color: var(--text-primary); font-weight: 700; }
+
+.section-summary {
+  background: linear-gradient(135deg, var(--accent) 0%, #6c63ff 100%);
+  color: #fff;
+  padding: 24px 28px;
+  border-radius: var(--radius);
+  margin: 28px 0;
+  box-shadow: var(--shadow-md);
+  line-height: 1.8;
+}
+.section-summary p { color: #fff; }
+.section-summary strong { color: #fff; }
+.section-summary p + p { margin-top: 14px; }
+
+.ref-list {
+  background: var(--bg-formula);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-top: 20px;
+  border: 1px solid var(--border);
+}
+.ref-list p {
+  margin-bottom: 10px;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+}
+
+.nav-toc {
+  background: var(--bg-toc);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin-bottom: 40px;
+  border: 1px solid var(--border);
+}
+.nav-toc strong {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.nav-toc a {
+  display: block;
+  padding: 5px 0;
+  font-size: 0.92em;
+  color: var(--text-secondary);
+  transition: color 0.2s, padding-left 0.2s;
+}
+.nav-toc a:hover {
+  color: var(--accent);
+  padding-left: 6px;
+}
+
+.back-to-top {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 42px;
+  height: 42px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.2em;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 100;
+}
+.back-to-top.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.back-to-top:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82em;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.keyword { color: #c678dd; }
+.function { color: #61afef; }
+.string { color: #98c379; }
+.comment { color: #5c6370; font-style: italic; }
+.number { color: #d19a66; }
+.class-name { color: #e5c07b; }
+.builtin { color: #56b6c2; }
+
+@media (max-width: 640px) {
+  .container { padding: 32px 16px 60px; }
+  h1 { font-size: 1.7em; }
+  h2 { font-size: 1.3em; }
+  pre { padding: 16px; font-size: 0.8em; }
+  .formula { padding: 14px 16px; }
+  .algorithm-box { padding: 20px 18px; }
+  .back-to-top { bottom: 20px; right: 20px; width: 36px; height: 36px; font-size: 1em; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<div class="container">
+
+<h1>第 10 章 Actor-Critic 算法</h1>
+
+<nav class="nav-toc">
+  <strong>目录</strong>
+  <a href="#sec101">10.1 简介</a>
+  <a href="#sec102">10.2 Actor-Critic</a>
+  <a href="#sec103">10.3 Actor-Critic 代码实践</a>
+  <a href="#sec104">10.4 总结</a>
+  <a href="#sec105">10.5 参考文献</a>
+</nav>
+
+<!-- ==================== 10.1 简介 ==================== -->
+
+<h2 id="sec101">10.1 简介</h2>
+
+<p>本书之前的章节讲解了基于值函数的方法（DQN）和基于策略的方法（REINFORCE），其中基于值函数的方法只学习一个价值函数，而基于策略的方法只学习一个策略函数。那么，有没有什么方法既学习价值函数，又学习策略函数呢？答案就是 <strong>Actor-Critic</strong>。Actor-Critic 是囊括一系列算法的整体架构，目前很多高效的前沿算法都属于 Actor-Critic 算法。本章接下来将会介绍一种最简单的 Actor-Critic 算法。</p>
+
+<p>需要明确的是，Actor-Critic 算法本质上是基于策略的算法，因为这一系列算法的目标都是优化一个带参数的策略，只是会额外学习价值函数，从而帮助策略函数更好地学习。</p>
+
+<!-- ==================== 10.2 Actor-Critic ==================== -->
+
+<h2 id="sec102">10.2 Actor-Critic</h2>
+
+<p>回顾一下，在 REINFORCE 算法中，目标函数的梯度中有一项轨迹回报，用于指导策略的更新。REINFORCE 算法用蒙特卡洛方法来估计，能不能考虑拟合一个值函数来指导策略进行学习呢？这正是 Actor-Critic 算法所做的。在策略梯度中，可以把梯度写成下面这个更加一般的形式：</p>
+
+<div class="formula">
+  $$g = \mathbb{E}\left[\sum_{t=0}^{T} \Psi_t \nabla_\theta \log \pi_\theta(a_t|s_t)\right]$$
+</div>
+
+<p>其中，$\Psi_t$ 可以有很多种形式：</p>
+
+<ol>
+  <li>$\sum_{t'=0}^{\infty} \gamma^{t'} r_{t'}$：轨迹的总回报；</li>
+  <li>$\sum_{t'=t}^{\infty} \gamma^{t'-t} r_{t'}$：动作 $a_t$ 之后的回报；</li>
+  <li>$\sum_{t'=t}^{\infty} \gamma^{t'-t} r_{t'} - b(s_t)$：基线版本的改进；</li>
+  <li>$Q^{\pi_\theta}(s_t, a_t)$：动作价值函数；</li>
+  <li>$A^{\pi_\theta}(s_t, a_t)$：优势函数；</li>
+  <li>$r_t + \gamma V^{\pi_\theta}(s_{t+1}) - V^{\pi_\theta}(s_t)$：时序差分（TD）残差。</li>
+</ol>
+
+<p>9.5 节提到 REINFORCE 通过蒙特卡洛采样的方法对策略梯度的估计是无偏的，但是方差非常大。我们可以用形式(3)引入<strong>基线函数</strong>（baseline function）来减小方差。此外，我们也可以采用 Actor-Critic 算法估计一个动作价值函数，代替蒙特卡洛采样得到的回报，这便是形式(4)。这个时候，我们可以把状态价值函数作为基线，从动作价值函数减去状态价值函数则得到了优势函数，我们称之为<strong>优势函数</strong>（advantage function），这便是形式(5)。更进一步，我们可以利用等式得到形式(6)。</p>
+
+<p>本章将着重介绍形式(6)，即通过时序差分残差来指导策略梯度进行学习。用神经网络进行估计的方法可以减小方差、提高鲁棒性。REINFORCE 算法基于蒙特卡洛采样，只能在序列结束后进行更新，这同时也要求任务具有有限的步数，而 Actor-Critic 算法则可以在每一步之后都进行更新，并且不对任务的步数做限制。</p>
+
+<p>我们将 Actor-Critic 分为两个部分：Actor（策略网络）和 Critic（价值网络），如图 10-1 所示。</p>
+
+<ul>
+  <li><strong>Actor</strong> 要做的是与环境交互，并在 Critic 价值函数的指导下用策略梯度学习一个更好的策略。</li>
+  <li><strong>Critic</strong> 要做的是通过 Actor 与环境交互收集的数据学习一个价值函数，这个价值函数会用于判断在当前状态什么动作是好的，什么动作不是好的，进而帮助 Actor 进行策略更新。</li>
+</ul>
+
+<div class="figure">
+  <img src="images/actor_critic_framework.jpg" alt="Actor 和 Critic 的关系">
+  <div class="caption">图 10-1 Actor 和 Critic 的关系</div>
+</div>
+
+<p>Actor 的更新采用策略梯度的原则，那 Critic 如何更新呢？我们将 Critic 价值网络表示为 $V_\omega$，参数为 $\omega$。对于单个数据定义如下价值函数的损失函数：</p>
+
+<div class="formula">
+  $$L(\omega) = \frac{1}{2}\left(r + \gamma V_\omega(s_{t+1}) - V_\omega(s_t)\right)^2$$
+</div>
+
+<p>与 DQN 中一样，我们采取类似于目标网络的方法，将上式中 $r + \gamma V_\omega(s_{t+1})$ 作为时序差分目标，不会产生梯度来更新价值函数。价值函数的梯度为：</p>
+
+<div class="formula">
+  $$\nabla_\omega L(\omega) = -\left(r + \gamma V_\omega(s_{t+1}) - V_\omega(s_t)\right) \nabla_\omega V_\omega(s_t)$$
+</div>
+
+<p>然后使用梯度下降方法来更新 Critic 价值网络参数即可。Actor-Critic 算法的具体流程如下：</p>
+
+<div class="algorithm-box">
+  <p><strong>Actor-Critic 算法</strong></p>
+  <p>初始化策略网络参数 $\theta$，价值网络参数 $\omega$</p>
+  <p><strong>for</strong> 序列 <strong>do</strong> :</p>
+  <p style="padding-left:20px;">用当前策略 $\pi_\theta$ 采样轨迹 $\{s_0, a_0, r_0, s_1, a_1, r_1, \ldots\}$</p>
+  <p style="padding-left:20px;">为每一步数据计算：$\delta_t = r_t + \gamma V_\omega(s_{t+1}) - V_\omega(s_t)$</p>
+  <p style="padding-left:20px;">更新价值参数 $\omega$：$\omega \leftarrow \omega + \alpha_\omega \sum_t \delta_t \nabla_\omega V_\omega(s_t)$</p>
+  <p style="padding-left:20px;">更新策略参数 $\theta$：$\theta \leftarrow \theta + \alpha_\theta \sum_t \delta_t \nabla_\theta \log \pi_\theta(a_t|s_t)$</p>
+  <p><strong>end for</strong></p>
+</div>
+
+<p>以上就是 Actor-Critic 算法的流程，接下来让我们来用代码实现它，看看效果如何吧！</p>
+
+<!-- ==================== 10.3 代码实践 ==================== -->
+
+<h2 id="sec103">10.3 Actor-Critic 代码实践</h2>
+
+<p>我们仍然在车杆环境上进行 Actor-Critic 算法的实验。</p>
+
+<h3>导入依赖</h3>
+
+<pre><code><span class="keyword">import</span> gym
+<span class="keyword">import</span> torch
+<span class="keyword">import</span> torch.nn.functional <span class="keyword">as</span> F
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+<span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt
+<span class="keyword">import</span> rl_utils</code></pre>
+
+<p>首先定义策略网络<span class="inline-code">PolicyNet</span>（与 REINFORCE 算法一样）。</p>
+
+<h3>策略网络（Actor）</h3>
+
+<pre><code><span class="keyword">class</span> <span class="class-name">PolicyNet</span>(torch.nn.Module):
+    <span class="keyword">def</span> <span class="function">__init__</span>(<span class="builtin">self</span>, state_dim, hidden_dim, action_dim):
+        <span class="builtin">super</span>(PolicyNet, <span class="builtin">self</span>).__init__()
+        <span class="builtin">self</span>.fc1 = torch.nn.Linear(state_dim, hidden_dim)
+        <span class="builtin">self</span>.fc2 = torch.nn.Linear(hidden_dim, action_dim)
+
+    <span class="keyword">def</span> <span class="function">forward</span>(<span class="builtin">self</span>, x):
+        x = F.relu(<span class="builtin">self</span>.fc1(x))
+        <span class="keyword">return</span> F.softmax(<span class="builtin">self</span>.fc2(x), dim=<span class="number">1</span>)</code></pre>
+
+<p>Actor-Critic 算法中额外引入一个价值网络，接下来的代码定义价值网络<span class="inline-code">ValueNet</span>，其输入是某个状态，输出则是状态的价值。</p>
+
+<h3>价值网络（Critic）</h3>
+
+<pre><code><span class="keyword">class</span> <span class="class-name">ValueNet</span>(torch.nn.Module):
+    <span class="keyword">def</span> <span class="function">__init__</span>(<span class="builtin">self</span>, state_dim, hidden_dim):
+        <span class="builtin">super</span>(ValueNet, <span class="builtin">self</span>).__init__()
+        <span class="builtin">self</span>.fc1 = torch.nn.Linear(state_dim, hidden_dim)
+        <span class="builtin">self</span>.fc2 = torch.nn.Linear(hidden_dim, <span class="number">1</span>)
+
+    <span class="keyword">def</span> <span class="function">forward</span>(<span class="builtin">self</span>, x):
+        x = F.relu(<span class="builtin">self</span>.fc1(x))
+        <span class="keyword">return</span> <span class="builtin">self</span>.fc2(x)</code></pre>
+
+<p>现在定义<span class="inline-code">ActorCritic</span>算法，主要包含采取动作（<span class="inline-code">take_action()</span>）和更新网络参数（<span class="inline-code">update()</span>）两个函数。</p>
+
+<h3>Actor-Critic 智能体</h3>
+
+<pre><code><span class="keyword">class</span> <span class="class-name">ActorCritic</span>:
+    <span class="keyword">def</span> <span class="function">__init__</span>(<span class="builtin">self</span>, state_dim, hidden_dim, action_dim, actor_lr, critic_lr,
+                 gamma, device):
+        <span class="comment"># 策略网络</span>
+        <span class="builtin">self</span>.actor = PolicyNet(state_dim, hidden_dim, action_dim).to(device)
+        <span class="builtin">self</span>.critic = ValueNet(state_dim, hidden_dim).to(device)  <span class="comment"># 价值网络</span>
+        <span class="comment"># 策略网络优化器</span>
+        <span class="builtin">self</span>.actor_optimizer = torch.optim.Adam(<span class="builtin">self</span>.actor.parameters(),
+                                                lr=actor_lr)
+        <span class="builtin">self</span>.critic_optimizer = torch.optim.Adam(<span class="builtin">self</span>.critic.parameters(),
+                                                 lr=critic_lr)  <span class="comment"># 价值网络优化器</span>
+        <span class="builtin">self</span>.gamma = gamma
+        <span class="builtin">self</span>.device = device
+
+    <span class="keyword">def</span> <span class="function">take_action</span>(<span class="builtin">self</span>, state):
+        state = torch.tensor([state], dtype=torch.float).to(<span class="builtin">self</span>.device)
+        probs = <span class="builtin">self</span>.actor(state)
+        action_dist = torch.distributions.Categorical(probs)
+        action = action_dist.sample()
+        <span class="keyword">return</span> action.item()
+
+    <span class="keyword">def</span> <span class="function">update</span>(<span class="builtin">self</span>, transition_dict):
+        states = torch.tensor(transition_dict[<span class="string">'states'</span>],
+                              dtype=torch.float).to(<span class="builtin">self</span>.device)
+        actions = torch.tensor(transition_dict[<span class="string">'actions'</span>]).view(-<span class="number">1</span>, <span class="number">1</span>).to(
+            <span class="builtin">self</span>.device)
+        rewards = torch.tensor(transition_dict[<span class="string">'rewards'</span>],
+                               dtype=torch.float).view(-<span class="number">1</span>, <span class="number">1</span>).to(<span class="builtin">self</span>.device)
+        next_states = torch.tensor(transition_dict[<span class="string">'next_states'</span>],
+                                   dtype=torch.float).to(<span class="builtin">self</span>.device)
+        dones = torch.tensor(transition_dict[<span class="string">'dones'</span>],
+                             dtype=torch.float).view(-<span class="number">1</span>, <span class="number">1</span>).to(<span class="builtin">self</span>.device)
+
+        <span class="comment"># 时序差分目标</span>
+        td_target = rewards + <span class="builtin">self</span>.gamma * <span class="builtin">self</span>.critic(next_states) * (<span class="number">1</span> -
+                                                                       dones)
+        td_delta = td_target - <span class="builtin">self</span>.critic(states)  <span class="comment"># 时序差分误差</span>
+        log_probs = torch.log(<span class="builtin">self</span>.actor(states).gather(<span class="number">1</span>, actions))
+        actor_loss = torch.mean(-log_probs * td_delta.detach())
+        <span class="comment"># 均方误差损失函数</span>
+        critic_loss = torch.mean(
+            F.mse_loss(<span class="builtin">self</span>.critic(states), td_target.detach()))
+        <span class="builtin">self</span>.actor_optimizer.zero_grad()
+        <span class="builtin">self</span>.critic_optimizer.zero_grad()
+        actor_loss.backward()  <span class="comment"># 计算策略网络的梯度</span>
+        critic_loss.backward()  <span class="comment"># 计算价值网络的梯度</span>
+        <span class="builtin">self</span>.actor_optimizer.step()  <span class="comment"># 更新策略网络的参数</span>
+        <span class="builtin">self</span>.critic_optimizer.step()  <span class="comment"># 更新价值网络的参数</span></code></pre>
+
+<p>定义好 Actor 和 Critic，我们就可以开始实验了，看看 Actor-Critic 在车杆环境上表现如何吧！</p>
+
+<h3>训练循环</h3>
+
+<pre><code>actor_lr = <span class="number">1e-3</span>
+critic_lr = <span class="number">1e-2</span>
+num_episodes = <span class="number">1000</span>
+hidden_dim = <span class="number">128</span>
+gamma = <span class="number">0.98</span>
+device = torch.device(<span class="string">"cuda"</span>) <span class="keyword">if</span> torch.cuda.is_available() <span class="keyword">else</span> torch.device(
+    <span class="string">"cpu"</span>)
+
+env_name = <span class="string">'CartPole-v0'</span>
+env = gym.make(env_name)
+env.seed(<span class="number">0</span>)
+torch.manual_seed(<span class="number">0</span>)
+state_dim = env.observation_space.shape[<span class="number">0</span>]
+action_dim = env.action_space.n
+agent = ActorCritic(state_dim, hidden_dim, action_dim, actor_lr, critic_lr,
+                    gamma, device)
+
+return_list = rl_utils.train_on_policy_agent(env, agent, num_episodes)</code></pre>
+
+<h3>训练输出</h3>
+
+<pre><code>Iteration 0: 100%|██████████| 100/100 [00:00&lt;00:00, 101.75it/s, episode=100, return=21.100]
+Iteration 1: 100%|██████████| 100/100 [00:01&lt;00:00, 58.71it/s, episode=200, return=72.800]
+Iteration 2: 100%|██████████| 100/100 [00:02&lt;00:00, 44.23it/s, episode=300, return=109.300]
+Iteration 3: 100%|██████████| 100/100 [00:02&lt;00:00, 35.41it/s, episode=400, return=163.000]
+Iteration 4: 100%|██████████| 100/100 [00:02&lt;00:00, 33.42it/s, episode=500, return=193.600]
+Iteration 5: 100%|██████████| 100/100 [00:03&lt;00:00, 31.62it/s, episode=600, return=195.900]
+Iteration 6: 100%|██████████| 100/100 [00:03&lt;00:00, 31.17it/s, episode=700, return=199.100]
+Iteration 7: 100%|██████████| 100/100 [00:03&lt;00:00, 30.85it/s, episode=800, return=186.900]
+Iteration 8: 100%|██████████| 100/100 [00:03&lt;00:00, 31.25it/s, episode=900, return=200.000]
+Iteration 9: 100%|██████████| 100/100 [00:03&lt;00:00, 31.00it/s, episode=1000, return=200.000]</code></pre>
+
+<p>在 CartPole-v0 环境中，满分就是 200 分。和 REINFORCE 相似，接下来我们绘制训练过程中每一条轨迹的回报变化图以及其经过平滑处理的版本。</p>
+
+<h3>绘制结果</h3>
+
+<pre><code>episodes_list = <span class="builtin">list</span>(<span class="builtin">range</span>(<span class="builtin">len</span>(return_list)))
+plt.plot(episodes_list, return_list)
+plt.xlabel(<span class="string">'Episodes'</span>)
+plt.ylabel(<span class="string">'Returns'</span>)
+plt.title(<span class="string">'Actor-Critic on {}'</span>.format(env_name))
+plt.show()
+
+mv_return = rl_utils.moving_average(return_list, <span class="number">9</span>)
+plt.plot(episodes_list, mv_return)
+plt.xlabel(<span class="string">'Episodes'</span>)
+plt.ylabel(<span class="string">'Returns'</span>)
+plt.title(<span class="string">'Actor-Critic on {}'</span>.format(env_name))
+plt.show()</code></pre>
+
+<div class="figure">
+  <img src="images/output_10_3_1.png" alt="Actor-Critic训练回报曲线">
+</div>
+
+<div class="figure">
+  <img src="images/output_10_3_2.png" alt="Actor-Critic训练回报移动平均曲线">
+</div>
+
+<p>根据实验结果我们可以发现，Actor-Critic 算法很快便能收敛到最优策略，并且训练过程非常稳定，抖动情况相比 REINFORCE 算法有了明显的改进，这说明价值函数的引入减小了方差。</p>
+
+<!-- ==================== 10.4 总结 ==================== -->
+
+<h2 id="sec104">10.4 总结</h2>
+
+<div class="section-summary">
+  <p>本章讲解了 Actor-Critic 算法，它是基于值函数的方法和基于策略的方法的叠加。价值模块 Critic 在策略模块 Actor 采样的数据中学习分辨什么是好的动作，什么不是好的动作，进而指导 Actor 进行策略更新。</p>
+  <p>随着 Actor 的训练的进行，其与环境交互所产生的数据分布也发生改变，这需要 Critic 尽快适应新的数据分布并给出好的判别。</p>
+  <p>Actor-Critic 算法非常实用，后续章节中的 TRPO、PPO、DDPG、SAC 等深度强化学习算法都是在 Actor-Critic 框架下进行发展的。深入了解 Actor-Critic 算法对读懂目前深度强化学习的研究热点大有裨益。</p>
+</div>
+
+<!-- ==================== 10.5 参考文献 ==================== -->
+
+<h2 id="sec105">10.5 参考文献</h2>
+
+<div class="ref-list">
+  <p>[1] KONDA, V R, TSITSIKLIS J N. Actor-critic algorithms [C]// Advances in neural information processing systems, 2000.</p>
+</div>
+
+<div class="footer">
+  内容来源：《动手学强化学习》(hrl.boyuai.com) | 离线版本
+</div>
+
+</div>
+</div>
+
+<button class="back-to-top" onclick="window.scrollTo({top:0})" aria-label="回到顶部">↑</button>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  renderMathInElement(document.body, {
+    delimiters: [
+      {left: "$$", right: "$$", display: true},
+      {left: "$", right: "$", display: false}
+    ],
+    throwOnError: false
+  });
+
+  const btn = document.querySelector('.back-to-top');
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', window.scrollY > 400);
+  });
+});
+</script>
+</body>
+</html>

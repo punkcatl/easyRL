@@ -6,26 +6,45 @@ import random
 
 class ReplayBuffer:
     def __init__(self, capacity):
-        self.buffer = collections.deque(maxlen=capacity) 
+        self.buffer = collections.deque(maxlen=capacity)
 
-    def add(self, state, action, reward, next_state, done): 
-        self.buffer.append((state, action, reward, next_state, done)) 
+    def add(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
 
-    def sample(self, batch_size): 
+    def sample(self, batch_size):
         transitions = random.sample(self.buffer, batch_size)
         state, action, reward, next_state, done = zip(*transitions)
-        return np.array(state), action, reward, np.array(next_state), done 
+        return np.array(state), action, reward, np.array(next_state), done
 
-    def size(self): 
+    def size(self):
         return len(self.buffer)
 
 def moving_average(a, window_size):
-    cumulative_sum = np.cumsum(np.insert(a, 0, 0)) 
+    cumulative_sum = np.cumsum(np.insert(a, 0, 0))
     middle = (cumulative_sum[window_size:] - cumulative_sum[:-window_size]) / window_size
     r = np.arange(1, window_size-1, 2)
     begin = np.cumsum(a[:window_size-1])[::2] / r
     end = (np.cumsum(a[:-window_size:-1])[::2] / r)[::-1]
     return np.concatenate((begin, middle, end))
+
+
+def _env_reset(env):
+    """Compatible with both old gym and new gymnasium reset API."""
+    result = env.reset()
+    if isinstance(result, tuple):
+        return result[0]
+    return result
+
+
+def _env_step(env, action):
+    """Compatible with both old gym (4 values) and new gymnasium (5 values) step API."""
+    result = env.step(action)
+    if len(result) == 5:
+        next_state, reward, terminated, truncated, info = result
+        done = terminated or truncated
+        return next_state, reward, done, info
+    return result
+
 
 def train_on_policy_agent(env, agent, num_episodes):
     return_list = []
@@ -34,11 +53,11 @@ def train_on_policy_agent(env, agent, num_episodes):
             for i_episode in range(int(num_episodes/10)):
                 episode_return = 0
                 transition_dict = {'states': [], 'actions': [], 'next_states': [], 'rewards': [], 'dones': []}
-                state = env.reset()
+                state = _env_reset(env)
                 done = False
                 while not done:
                     action = agent.take_action(state)
-                    next_state, reward, done, _ = env.step(action)
+                    next_state, reward, done, _ = _env_step(env, action)
                     transition_dict['states'].append(state)
                     transition_dict['actions'].append(action)
                     transition_dict['next_states'].append(next_state)
@@ -59,11 +78,11 @@ def train_off_policy_agent(env, agent, num_episodes, replay_buffer, minimal_size
         with tqdm(total=int(num_episodes/10), desc='Iteration %d' % i) as pbar:
             for i_episode in range(int(num_episodes/10)):
                 episode_return = 0
-                state = env.reset()
+                state = _env_reset(env)
                 done = False
                 while not done:
                     action = agent.take_action(state)
-                    next_state, reward, done, _ = env.step(action)
+                    next_state, reward, done, _ = _env_step(env, action)
                     replay_buffer.add(state, action, reward, next_state, done)
                     state = next_state
                     episode_return += reward
@@ -87,4 +106,3 @@ def compute_advantage(gamma, lmbda, td_delta):
         advantage_list.append(advantage)
     advantage_list.reverse()
     return torch.tensor(advantage_list, dtype=torch.float)
-                

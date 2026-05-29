@@ -3,6 +3,7 @@
 ## Training & Optimization
 
 - [DQN Training Flow](dqn_training_flow.md) — Complete data flow of one update step, with shapes and concepts
+- [Value vs Policy Comparison](value_vs_policy_comparison.md) — Value-based vs policy-based methods, Softmax, and REINFORCE code-reading notes
 - [Loss Functions](loss_functions.md) — MSE, L1, Smooth L1 loss comparison and usage in DQN
 - [Gradient Clipping](gradient_clipping.md) — clip_grad_norm_ usage, example, and when to use
 - [Target Network Update](target_network_update.md) — Hard update vs soft update (Polyak averaging)
@@ -26,6 +27,7 @@
 ## 训练与优化
 
 - [DQN 训练流程](dqn_training_flow.md) — 一次更新步骤的完整数据流，包含张量形状和核心概念
+- [价值方法与策略方法对比](value_vs_policy_comparison.md) — 总结 value-based 与 policy-based 的区别、Softmax 含义以及 REINFORCE 代码阅读要点
 - [损失函数](loss_functions.md) — MSE、L1、Smooth L1 损失对比及在 DQN 中的使用
 - [梯度裁剪](gradient_clipping.md) — clip_grad_norm_ 用法、举例及使用场景
 - [目标网络更新](target_network_update.md) — 硬更新 vs 软更新（Polyak 平均）

@@ -71,6 +71,8 @@ def train():
         save_path=f"{results_dir}/training_curve.png",
     )
 
+    np.save(f"{results_dir}/q_table.npy", agent.q_table)
+
     print(f"\nTraining complete. Results saved to {results_dir}/")
     env.close()
 

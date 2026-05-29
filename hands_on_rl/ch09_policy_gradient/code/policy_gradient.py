@@ -56,7 +56,7 @@ class REINFORCE:
         for i in reversed(range(len(reward_list))): #从最后一步算起，逆序通过累加得到每一步的回报 G_t = r_t + γ * G_{t+1}，节省了重复计算的时间，属于动态规划的思想。
             reward = reward_list[i]
             state = torch.tensor([state_list[i]], dtype=torch.float).to(self.device)
-            action = torch.tensor([action_list[i]]).view(-1, 1).to(self.device) # .view(-1, 1) 就是把张量强制变成"N行1列"的竖列形状。
+            action = torch.tensor([action_list[i]]).view(-1, 1).to(self.device) # .view(-1, 1) 就是把张量强制变成"N行1列"的竖列形状。第一个 -1 表示：这一维的大小由 PyTorch 自动推断。
             # 从动作概率分布中抽取当前动作的概率，然后取对数得到 log_prob
             log_prob = torch.log(self.policy_net(state).gather(1, action)) # gather(dim, index)，gather 的作用是沿第dim维按索引index从张量中抽取指定位置的值。
             G = self.gamma * G + reward # 计算当前时间步的回报 G_t = r_t + γ * G_{t+1}
@@ -77,7 +77,7 @@ device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 env_name = 'CartPole-v1'
 # env = gym.make(env_name, render_mode='human')
 env = gym.make(env_name)
-torch.manual_seed(0) #设置 PyTorch 随机数种子，确保实验可复现
+torch.manual_seed(0) #设置 PyTorch 随机数种子，确保实验可复现，影响的是 dist.sample()、torch.randn() 等随机操作。
 state_dim = env.observation_space.shape[0] # 状态空间维度
 action_dim = env.action_space.n # 动作空间维度
 agent = REINFORCE(state_dim, hidden_dim, action_dim, learning_rate, gamma, device)

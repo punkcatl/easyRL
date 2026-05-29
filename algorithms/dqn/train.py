@@ -28,7 +28,7 @@ def train():
     # render_mode="human" enables real-time visualization; set to None to disable for faster training
     env = make_lane_keeping_env(render_mode="human")
     obs, _ = env.reset() # env.reset()返回obs和info，obs是初始观察状态，info包含额外信息但这里不需要，所以用_占位符忽略它
-    # obs可能是多维的如(5,5)：5辆车，每辆5个特征。flatten()拍平成一维(25,)，shape[0]取长度作为网络输入维度
+    # obs可能是多维的如(5,5)：5辆车，每辆5个特征。flatten()拍平成一维(25,)，shape[0]取第0维的大小，就是元素总数25，作为网络输入维度
     # 因为nn.Linear只接受一维向量输入，不能直接处理二维矩阵
     state_dim = obs.flatten().shape[0]
     # highway-env DiscreteMetaAction有5个高层决策动作（底层由PID控制器执行）:

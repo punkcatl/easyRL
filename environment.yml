@@ -13,6 +13,9 @@ dependencies:
   - pip
   - pip:
     - gymnasium==0.29.1
+    - gym>=0.26
     - highway-env==1.9.1
     - tensorboard==2.17
+    - pygame>=2.1
+    - tqdm>=4.64
     - pytest==8.2

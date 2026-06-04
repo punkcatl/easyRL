@@ -98,11 +98,14 @@ def train_off_policy_agent(env, agent, num_episodes, replay_buffer, minimal_size
 
 
 def compute_advantage(gamma, lmbda, td_delta):
-    td_delta = td_delta.detach().numpy()
+    #numpy() 是 PyTorch Tensor 的一个方法，用来把 Tensor 转成 NumPy 的 ndarray， 一个前提是Tensor 必须在 CPU 上
+    # detach() 的作用是从计算图分离，不再跟踪梯度。这一步要求数据在 CPU 上，所以上游常见写法是先 .cpu()。
+    td_delta = td_delta.detach().numpy() 
     advantage_list = []
     advantage = 0.0
     for delta in td_delta[::-1]:
-        advantage = gamma * lmbda * advantage + delta
+        advantage = gamma * lmbda * advantage + delta # A_t = δt +(γλ)A_t+1
         advantage_list.append(advantage)
-    advantage_list.reverse()
+    # 后续使用时需要按时间正序 [A_0, A_1, ..., A_T] 跟 state、action 对齐，所以要 reverse 翻回来
+    advantage_list.reverse() 
     return torch.tensor(advantage_list, dtype=torch.float)

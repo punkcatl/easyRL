@@ -20,6 +20,18 @@ $$\pi_\theta(a|s) = \mathcal{N}(\mu_\theta(s), \sigma_\theta^2)$$
 
 Action is sampled from the Gaussian and clipped to $[-1, 1]$.
 
+**Policy entropy:**
+
+For a policy distribution, entropy measures how random the action distribution is:
+
+$$H[\pi_\theta](s) = -\sum_a \pi_\theta(a|s) \log \pi_\theta(a|s)$$
+
+For the diagonal Gaussian policy used in this implementation:
+
+$$H\left[\mathcal{N}(\mu_\theta(s), \sigma_\theta^2)\right] = \frac{1}{2}\sum_i \log\left(2\pi e\sigma_i^2\right)$$
+
+Larger $\sigma_i$ means a wider action distribution, higher entropy, and more exploration.
+
 **Generalized Advantage Estimation (GAE):**
 
 $$\hat{A}_t = \sum_{l=0}^{T-t} (\gamma \lambda)^l \delta_{t+l}$$
@@ -38,6 +50,7 @@ $$L_{critic} = \text{MSE}(V_\theta(s_t), R_t)$$
 | Actor network (mean + log_std) | `agent.py:L10-L22` — `Actor` with mean_head and learnable log_std parameter |
 | Critic network (separate) | `agent.py:L25-L35` — `Critic` independent value network |
 | Gaussian sampling + clip to [-1,1] | `agent.py:L57-L62` — `Normal` dist sample, then `action.clamp(-1, 1)` |
+| Policy entropy $H[\pi_\theta]$ | `agent.py:L68` — `dist.entropy().sum(dim=-1).mean()` |
 | TD error $\delta_t = r + \gamma V(s') - V(s)$ | `agent.py:L72` — `delta = rewards[t] + gamma * values_ext[t+1] * (1-dones[t]) - values_ext[t]` |
 | GAE: $\hat{A}_t = \delta_t + \gamma\lambda\hat{A}_{t+1}$ | `agent.py:L73` — `gae = delta + gamma * gae_lambda * (1-dones[t]) * gae` |
 | Returns = advantages + values | `agent.py:L77` — `returns_t = advantages_t + values` |
@@ -104,6 +117,18 @@ $$\pi_\theta(a|s) = \mathcal{N}(\mu_\theta(s), \sigma_\theta^2)$$
 
 动作从高斯分布采样后裁剪到 $[-1, 1]$。
 
+**策略熵：**
+
+对于策略分布，熵衡量动作分布的随机程度：
+
+$$H[\pi_\theta](s) = -\sum_a \pi_\theta(a|s) \log \pi_\theta(a|s)$$
+
+对于本实现使用的对角高斯策略：
+
+$$H\left[\mathcal{N}(\mu_\theta(s), \sigma_\theta^2)\right] = \frac{1}{2}\sum_i \log\left(2\pi e\sigma_i^2\right)$$
+
+更大的 $\sigma_i$ 表示动作分布更宽、熵更高、探索更多。
+
 **广义优势估计 (GAE)：**
 
 $$\hat{A}_t = \sum_{l=0}^{T-t} (\gamma \lambda)^l \delta_{t+l}$$
@@ -122,6 +147,7 @@ $$L_{critic} = \text{MSE}(V_\theta(s_t), R_t)$$
 | Actor 网络（均值 + log_std） | `agent.py:L10-L22` — `Actor`，mean_head + 可学习 log_std 参数 |
 | Critic 网络（独立） | `agent.py:L25-L35` — `Critic` 独立价值网络 |
 | 高斯采样 + 裁剪到 [-1,1] | `agent.py:L57-L62` — `Normal` 分布采样，然后 `action.clamp(-1, 1)` |
+| 策略熵 $H[\pi_\theta]$ | `agent.py:L68` — `dist.entropy().sum(dim=-1).mean()` |
 | TD 误差 $\delta_t = r + \gamma V(s') - V(s)$ | `agent.py:L72` |
 | GAE: $\hat{A}_t = \delta_t + \gamma\lambda\hat{A}_{t+1}$ | `agent.py:L73` |
 | 回报 = 优势 + 价值 | `agent.py:L77` |

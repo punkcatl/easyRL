@@ -8,12 +8,12 @@ import numpy as np
 
 from algorithms.sac.agent import SACAgent
 from algorithms.sac.config import config
-from envs.highway_lane_keeping import make_continuous_lane_keeping_env
+from envs.highway_lane_keeping import make_racetrack_env
 
 
 def evaluate(model_path: str = None, n_episodes: int = 10):
     """Load trained SAC agent and evaluate with deterministic policy."""
-    env = make_continuous_lane_keeping_env(render_mode="human")
+    env = make_racetrack_env(render_mode="human")
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
     action_dim = env.action_space.shape[0]
@@ -31,7 +31,7 @@ def evaluate(model_path: str = None, n_episodes: int = 10):
     )
 
     if model_path is None:
-        model_path = str(Path(__file__).resolve().parent / "results" / "sac_highway.pth")
+        model_path = str(Path(__file__).resolve().parent / "results" / "sac_racetrack.pth")
     agent.load(model_path)
     print(f"Loaded model from {model_path}")
 
@@ -44,12 +44,11 @@ def evaluate(model_path: str = None, n_episodes: int = 10):
         total_reward = 0
         steps = 0
         done = False
-        truncated = False
 
-        while not (done or truncated):
-            # 确定性策略：deterministic=True 直接用 mean，不加噪声
+        while not done:
             action = agent.take_action(state, deterministic=True)
-            obs, reward, done, truncated, _ = env.step(action)
+            obs, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
             state = obs.flatten()
             total_reward += reward
             steps += 1
@@ -60,8 +59,8 @@ def evaluate(model_path: str = None, n_episodes: int = 10):
 
     print(f"\n=== Evaluation Results ===")
     print(f"Episodes: {n_episodes}")
-    print(f"Avg Reward: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}")
-    print(f"Avg Length: {np.mean(lengths):.1f} ± {np.std(lengths):.1f}")
+    print(f"Avg Reward: {np.mean(rewards):.2f} +/- {np.std(rewards):.2f}")
+    print(f"Avg Length: {np.mean(lengths):.1f} +/- {np.std(lengths):.1f}")
     print(f"Max Reward: {np.max(rewards):.2f}")
     print(f"Min Reward: {np.min(rewards):.2f}")
 

@@ -11,7 +11,7 @@ from torch.distributions import Normal
 class GaussianPolicy(nn.Module):
     """Gaussian policy network with tanh squashing for continuous actions."""
 
-    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 256):
+    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 64):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
@@ -43,7 +43,7 @@ class GaussianPolicy(nn.Module):
 class QNetwork(nn.Module):
     """Q-value network that takes state-action pairs."""
 
-    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 256):
+    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 64):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(state_dim + action_dim, hidden_dim),
@@ -95,7 +95,7 @@ class SACAgent:
         alpha: float,
         buffer_size: int,
         batch_size: int,
-        hidden_dim: int = 256,
+        hidden_dim: int = 64,
         auto_alpha: bool = True,
     ):
         self.state_dim = state_dim

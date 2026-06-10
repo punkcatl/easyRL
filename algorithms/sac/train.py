@@ -10,15 +10,15 @@ import torch
 
 from algorithms.sac.agent import SACAgent
 from algorithms.sac.config import config
-from envs.highway_lane_keeping import make_continuous_lane_keeping_env
+from envs.highway_lane_keeping import make_racetrack_env
 from utils.logger import Logger
 from utils.hud import patch_viewer_for_hud, update_hud
 
 
 def train():
-    """Train SAC on highway-env continuous lane keeping."""
-    # render_mode="human" enables real-time visualization; set to None to disable for faster training
-    env = make_continuous_lane_keeping_env(render_mode="human")
+    """Train SAC on racetrack-v0 continuous lateral control."""
+    # env = make_racetrack_env(render_mode="human")
+    env = make_racetrack_env(render_mode=None)
     obs, _ = env.reset()
     state_dim = obs.flatten().shape[0]
     action_dim = env.action_space.shape[0]
@@ -78,17 +78,17 @@ def train():
         rewards_history.append(episode_reward)
         logger.log("episode_reward", episode, episode_reward)
 
-        if (episode + 1) % 10 == 0:
-            avg_reward = np.mean(rewards_history[-10:])
+        if (episode + 1) % 50 == 0:
+            avg_reward = np.mean(rewards_history[-50:])
             print(f"Episode {episode + 1}/{n_episodes} | "
                   f"Reward: {episode_reward:.1f} | "
-                  f"Avg(10): {avg_reward:.1f} | "
+                  f"Avg(50): {avg_reward:.1f} | "
                   f"Steps: {total_steps}")
 
     logger.save()
     logger.close()
     env.close()
-    agent.save(f"{results_dir}/sac_highway.pth")
+    agent.save(f"{results_dir}/sac_racetrack.pth")
     print(f"\nTraining complete. Model saved to {results_dir}/")
 
 

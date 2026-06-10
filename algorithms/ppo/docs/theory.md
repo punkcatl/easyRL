@@ -47,20 +47,20 @@ $$L_{critic} = \text{MSE}(V_\theta(s_t), R_t)$$
 
 | Formula | Code location |
 |---------|---------------|
-| Actor network (mean + log_std) | `agent.py:L10-L22` — `Actor` with mean_head and learnable log_std parameter |
-| Critic network (separate) | `agent.py:L25-L35` — `Critic` independent value network |
-| Gaussian sampling + clip to [-1,1] | `agent.py:L57-L62` — `Normal` dist sample, then `action.clamp(-1, 1)` |
-| Policy entropy $H[\pi_\theta]$ | `agent.py:L68` — `dist.entropy().sum(dim=-1).mean()` |
-| TD error $\delta_t = r + \gamma V(s') - V(s)$ | `agent.py:L72` — `delta = rewards[t] + gamma * values_ext[t+1] * (1-dones[t]) - values_ext[t]` |
-| GAE: $\hat{A}_t = \delta_t + \gamma\lambda\hat{A}_{t+1}$ | `agent.py:L73` — `gae = delta + gamma * gae_lambda * (1-dones[t]) * gae` |
-| Returns = advantages + values | `agent.py:L77` — `returns_t = advantages_t + values` |
-| Advantage normalization | `agent.py:L80` — `(advantages - mean) / (std + eps)` |
-| Ratio $r_t(\theta) = \exp(\log\pi_{new} - \log\pi_{old})$ | `agent.py:L94` — `ratio = torch.exp(new_log_probs - batch_old_log_probs)` |
-| Clipped surrogate | `agent.py:L97-L98` — `surr2 = torch.clamp(ratio, 1-clip_eps, 1+clip_eps) * batch_advantages` |
-| Actor loss with entropy bonus | `agent.py:L99` — `-torch.min(surr1, surr2).mean() - 0.01 * entropy` |
-| Critic loss: MSE on returns | `agent.py:L102` — `MSELoss()(new_values, batch_returns)` |
-| Gradient clipping | `agent.py:L107-L108` — `clip_grad_norm_(params, max_grad_norm)` |
-| Multiple epochs over same data | `agent.py:L84` — `for _ in range(self.epochs)` |
+| Actor network (mean + log_std) | `agent.py` — `Actor` class, mean_head + learnable log_std parameter |
+| Critic network (separate) | `agent.py` — `Critic` class, independent value network |
+| Gaussian sampling + clip to [-1,1] | `agent.py: take_action()` — `Normal` dist sample, `action_raw.clamp(-1, 1)` |
+| Policy entropy $H[\pi_\theta]$ | `agent.py: evaluate()` — `dist.entropy().sum(dim=-1).mean()` |
+| TD error $\delta_t = r + \gamma V(s') - V(s)$ | `agent.py: update()` — GAE section |
+| GAE: $\hat{A}_t = \delta_t + \gamma\lambda\hat{A}_{t+1}$ | `agent.py: update()` — reversed loop |
+| Returns = advantages + values | `agent.py: update()` — `returns_t = advantages_t + values` |
+| Advantage normalization | `agent.py: update()` — `(advantages - mean) / (std + eps)` |
+| Ratio $r_t(\theta) = \exp(\log\pi_{new} - \log\pi_{old})$ | `agent.py: update()` — PPO update loop |
+| Clipped surrogate | `agent.py: update()` — `torch.clamp(ratio, 1-clip_eps, 1+clip_eps)` |
+| Actor loss with entropy bonus | `agent.py: update()` — `-torch.min(surr1, surr2).mean() - entropy_coef * entropy` |
+| Critic loss: MSE on returns | `agent.py: update()` — `MSELoss()(new_values, batch_returns)` |
+| Gradient clipping | `agent.py: update()` — `clip_grad_norm_(params, max_grad_norm)` |
+| Multiple epochs over same data | `agent.py: update()` — `for _ in range(self.epochs)` |
 
 ## Deep Dive (Optional)
 
@@ -144,20 +144,20 @@ $$L_{critic} = \text{MSE}(V_\theta(s_t), R_t)$$
 
 | 公式 | 代码位置 |
 |------|---------|
-| Actor 网络（均值 + log_std） | `agent.py:L10-L22` — `Actor`，mean_head + 可学习 log_std 参数 |
-| Critic 网络（独立） | `agent.py:L25-L35` — `Critic` 独立价值网络 |
-| 高斯采样 + 裁剪到 [-1,1] | `agent.py:L57-L62` — `Normal` 分布采样，然后 `action.clamp(-1, 1)` |
-| 策略熵 $H[\pi_\theta]$ | `agent.py:L68` — `dist.entropy().sum(dim=-1).mean()` |
-| TD 误差 $\delta_t = r + \gamma V(s') - V(s)$ | `agent.py:L72` |
-| GAE: $\hat{A}_t = \delta_t + \gamma\lambda\hat{A}_{t+1}$ | `agent.py:L73` |
-| 回报 = 优势 + 价值 | `agent.py:L77` |
-| 优势归一化 | `agent.py:L80` |
-| 比率 $r_t(\theta)$ | `agent.py:L94` |
-| 裁剪替代目标 | `agent.py:L97-L98` |
-| Actor 损失 + 熵奖励 | `agent.py:L99` |
-| Critic 损失 | `agent.py:L102` |
-| 梯度裁剪 | `agent.py:L107-L108` — `clip_grad_norm_(params, max_grad_norm)` |
-| 对同一批数据多次迭代 | `agent.py:L84` |
+| Actor 网络（均值 + log_std） | `agent.py` — `Actor` 类，mean_head + 可学习 log_std 参数 |
+| Critic 网络（独立） | `agent.py` — `Critic` 类，独立价值网络 |
+| 高斯采样 + 裁剪到 [-1,1] | `agent.py: take_action()` — `Normal` 分布采样，然后 `action_raw.clamp(-1, 1)` |
+| 策略熵 $H[\pi_\theta]$ | `agent.py: evaluate()` — `dist.entropy().sum(dim=-1).mean()` |
+| TD 误差 $\delta_t = r + \gamma V(s') - V(s)$ | `agent.py: update()` — GAE 部分 |
+| GAE: $\hat{A}_t = \delta_t + \gamma\lambda\hat{A}_{t+1}$ | `agent.py: update()` — 逆序循环 |
+| 回报 = 优势 + 价值 | `agent.py: update()` |
+| 优势归一化 | `agent.py: update()` |
+| 比率 $r_t(\theta)$ | `agent.py: update()` — PPO 更新循环 |
+| 裁剪替代目标 | `agent.py: update()` — `torch.clamp(ratio, 1-clip_eps, 1+clip_eps)` |
+| Actor 损失 + 熵奖励 | `agent.py: update()` — `-torch.min(surr1, surr2).mean() - entropy_coef * entropy` |
+| Critic 损失 | `agent.py: update()` — `MSELoss()(new_values, batch_returns)` |
+| 梯度裁剪 | `agent.py: update()` — `clip_grad_norm_(params, max_grad_norm)` |
+| 对同一批数据多次迭代 | `agent.py: update()` — `for _ in range(self.epochs)` |
 
 ## 深入推导（选读）
 

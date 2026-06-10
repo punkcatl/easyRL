@@ -13,10 +13,10 @@ Q-Learning → DQN → Policy Gradient (REINFORCE) → PPO → SAC
 | Algorithm | Environment | Action Space |
 |-----------|-------------|--------------|
 | Q-Learning | CliffWalking-v0 | Discrete (tabular) |
-| DQN | highway-env | DiscreteMetaAction |
-| Policy Gradient | highway-env | DiscreteMetaAction |
-| PPO | highway-env | ContinuousAction |
-| SAC | highway-env | ContinuousAction |
+| DQN | highway-env (highway-v0) | DiscreteMetaAction |
+| Policy Gradient | highway-env (highway-v0) | DiscreteMetaAction |
+| PPO | highway-env (racetrack-v0) | Continuous lateral steering |
+| SAC | highway-env (racetrack-v0) | Continuous lateral steering |
 
 For the value-based / policy-based / actor-critic classification, see [docs/algorithm_env_mapping.md](docs/algorithm_env_mapping.md).
 
@@ -26,11 +26,11 @@ For the value-based / policy-based / actor-critic classification, see [docs/algo
 easyRL/
 ├── algorithms/
 │   ├── q_learning/        # Tabular Q-Learning (CliffWalking)
-│   ├── dqn/               # Deep Q-Network (highway discrete)
-│   ├── policy_gradient/   # REINFORCE (highway discrete)
-│   ├── ppo/               # Proximal Policy Optimization (highway continuous)
-│   └── sac/               # Soft Actor-Critic (highway continuous)
-├── envs/                  # Highway-env lane-keeping wrappers
+│   ├── dqn/               # Deep Q-Network (highway-v0 discrete)
+│   ├── policy_gradient/   # REINFORCE (highway-v0 discrete)
+│   ├── ppo/               # Proximal Policy Optimization (racetrack-v0 lateral steering)
+│   └── sac/               # Soft Actor-Critic (racetrack-v0 lateral steering)
+├── envs/                  # Highway-env environment wrappers
 ├── utils/                 # Plotting, logging, metrics
 ├── experiments/           # Cross-algorithm comparison experiments
 ├── hands_on_rl/           # Textbook chapter exercises (theory supplement)
@@ -127,10 +127,10 @@ Q-Learning → DQN → Policy Gradient (REINFORCE) → PPO → SAC
 | 算法 | 环境 | 动作空间 |
 |------|------|---------|
 | Q-Learning | CliffWalking-v0 | 离散（表格型） |
-| DQN | highway-env | 离散元动作 |
-| Policy Gradient | highway-env | 离散元动作 |
-| PPO | highway-env | 连续动作 |
-| SAC | highway-env | 连续动作 |
+| DQN | highway-env (highway-v0) | 离散元动作 |
+| Policy Gradient | highway-env (highway-v0) | 离散元动作 |
+| PPO | highway-env (racetrack-v0) | 连续横向转向 |
+| SAC | highway-env (racetrack-v0) | 连续横向转向 |
 
 关于 value-based / policy-based / actor-critic 的分类说明，见 [docs/algorithm_env_mapping.md](docs/algorithm_env_mapping.md)。
 
@@ -140,11 +140,11 @@ Q-Learning → DQN → Policy Gradient (REINFORCE) → PPO → SAC
 easyRL/
 ├── algorithms/
 │   ├── q_learning/        # 表格型 Q-Learning（CliffWalking）
-│   ├── dqn/               # 深度 Q 网络（highway 离散）
-│   ├── policy_gradient/   # REINFORCE 策略梯度（highway 离散）
-│   ├── ppo/               # 近端策略优化（highway 连续）
-│   └── sac/               # 软演员-评论家（highway 连续）
-├── envs/                  # highway-env 车道保持环境封装
+│   ├── dqn/               # 深度 Q 网络（highway-v0 离散）
+│   ├── policy_gradient/   # REINFORCE 策略梯度（highway-v0 离散）
+│   ├── ppo/               # 近端策略优化（racetrack-v0 横向转向）
+│   └── sac/               # 软演员-评论家（racetrack-v0 横向转向）
+├── envs/                  # highway-env 环境封装
 ├── utils/                 # 绘图、日志、评估指标
 ├── experiments/           # 跨算法对比实验
 ├── hands_on_rl/           # 教材章节练习（理论补充）

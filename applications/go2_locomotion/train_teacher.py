@@ -21,6 +21,32 @@ from applications.go2_locomotion.agent.ppo import PPOTrainer
 from applications.go2_locomotion.dr.domain_randomization import Go2DomainRandomizer
 
 
+def run_eval_episode(cfg, trainer, cmd_vx=0.5, max_steps=500):
+    """Run one deterministic episode with fixed command. Returns avg_vx (ground truth)."""
+    eval_cfg = dict(cfg)
+    eval_cfg["command_range"] = {
+        "lin_vel_x": [cmd_vx, cmd_vx],
+        "lin_vel_y": [0.0, 0.0],
+        "ang_vel_yaw": [0.0, 0.0],
+    }
+    eval_cfg["init_state_randomize"] = False
+    env = Go2Env(eval_cfg)
+    obs, _ = env.reset()
+    vx_list = []
+    for _ in range(max_steps):
+        obs_norm = trainer.normalize_obs(obs[None])[0]
+        obs_t = torch.FloatTensor(obs_norm[None]).to(trainer.device)
+        with torch.no_grad():
+            mean, _ = trainer.network.forward_actor(obs_t)
+            action = mean.cpu().numpy()[0]
+        obs, _, terminated, truncated, _ = env.step(action)
+        vx_list.append(float(obs[0]))
+        if terminated or truncated:
+            break
+    env.close()
+    return float(np.mean(vx_list)), len(vx_list)
+
+
 class DRVecGo2Env:
     """Vectorized Go2 env with DomainRandomizer, command curriculum, and DR curriculum."""
 
@@ -45,6 +71,7 @@ class DRVecGo2Env:
         self._curriculum_threshold = cfg.get("cmd_curriculum_threshold", 0.5)
         self._curriculum_delta = cfg.get("cmd_curriculum_delta", 0.1)
         self._last_tracking_ratio = 0.0
+        self._last_pct_positive = 0.0
         self._curriculum_stable_count = 0
 
         # DR curriculum state
@@ -129,7 +156,9 @@ class DRVecGo2Env:
             cmd_vx = env.command[0]
             actual_vx = obs[0]
             if abs(cmd_vx) > 0.1:
-                tracking_ratios.append(actual_vx / cmd_vx)
+                # Clip to [0, 1.5]: negative ratios (moving backwards) count as 0
+                ratio = float(np.clip(actual_vx / cmd_vx, 0.0, 1.5))
+                tracking_ratios.append(ratio)
 
             if done:
                 obs, _ = env.reset()
@@ -143,7 +172,12 @@ class DRVecGo2Env:
             done_list.append(done)
             priv_list.append(priv)
 
-        self._last_tracking_ratio = float(np.mean(tracking_ratios)) if tracking_ratios else 0.0
+        if tracking_ratios:
+            self._last_tracking_ratio = float(np.mean(tracking_ratios))
+            self._last_pct_positive = float(np.mean([r > 0.3 for r in tracking_ratios]))
+        else:
+            self._last_tracking_ratio = 0.0
+            self._last_pct_positive = 0.0
         return (
             np.array(obs_list, np.float32),
             np.array(reward_list, np.float32),
@@ -177,10 +211,31 @@ def train_teacher(cfg=None):
         vec_env = DRVecGo2Env(cfg)
     trainer = PPOTrainer(cfg)
 
+    # Resume from checkpoint if specified
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--resume":
+        resume_path = sys.argv[2] if len(sys.argv) > 2 else str(results_dir / "teacher_iter1500.pth")
+        print(f"Resuming from {resume_path}")
+        trainer.load(resume_path)
+
+    # LR and entropy decay setup
+    lr_start = cfg["lr"]
+    lr_end = cfg.get("lr_end", lr_start)
+    ent_start = cfg["entropy_coef"]
+    ent_end = cfg.get("entropy_coef_end", ent_start)
+
     reward_history = []
     obs, privileged = vec_env.reset()
 
     for iteration in range(n_iterations):
+        # Linear decay of lr and entropy
+        progress = iteration / max(n_iterations - 1, 1)
+        current_lr = lr_start + (lr_end - lr_start) * progress
+        current_ent = ent_start + (ent_end - ent_start) * progress
+        for pg in trainer.optimizer.param_groups:
+            pg["lr"] = current_lr
+        trainer.entropy_coef = current_ent
+
         if hasattr(vec_env, 'set_iteration'):
             vec_env.set_iteration(iteration)
 
@@ -285,12 +340,20 @@ def train_teacher(cfg=None):
         if (iteration + 1) % 50 == 0:
             avg50 = float(np.mean(reward_history[-50:]))
             ratio = vec_env.get_tracking_ratio() if hasattr(vec_env, 'get_tracking_ratio') else 0.0
+            pct = vec_env._last_pct_positive if hasattr(vec_env, '_last_pct_positive') else 0.0
             cmd_range = vec_env.get_cmd_range() if hasattr(vec_env, 'get_cmd_range') else {}
             vx_range = cmd_range.get('lin_vel_x', [0, 0])
             dr_phase = "no-DR" if iteration < cfg.get("dr_phase1_end", 0) else (
                 "light-DR" if iteration < cfg.get("dr_phase2_end", 0) else "full-DR")
             print(f"Iter {iteration + 1}/{n_iterations} | reward: {avg50:.3f} | "
-                  f"track: {ratio:.2f} | vx: [{vx_range[0]:.2f},{vx_range[1]:.2f}] | {dr_phase}")
+                  f"track: {ratio:.2f} pct30: {pct:.0%} | "
+                  f"vx: [{vx_range[0]:.2f},{vx_range[1]:.2f}] | lr: {current_lr:.1e} | {dr_phase}")
+
+        # Ground-truth eval every 200 iter
+        if (iteration + 1) % 200 == 0:
+            eval_vx, eval_steps = run_eval_episode(cfg, trainer, cmd_vx=0.5)
+            print(f"  [EVAL] iter {iteration+1}: avg_vx={eval_vx:.3f} m/s "
+                  f"(cmd=0.5, det, {eval_steps} steps)")
 
         if (iteration + 1) % 500 == 0:
             trainer.save(str(results_dir / f"teacher_iter{iteration + 1}.pth"))

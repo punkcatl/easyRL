@@ -413,3 +413,126 @@ forward_progress:       4.0     # 2.0->4.0 (绝对主导, baseline subtracted)
 | cmd=1.5 | -1.50 | +2.8 | +4.3 |
 
 站着在大多数命令下是净负的！只有 cmd≈0 时站着勉强为正（1.3），但初始范围不含零。
+
+### Round 6 实际结果（5000 iter 完整跑完）
+
+```
+Phase 1 (iter 0-500):    reward 1.0→1.8, track 0.37→0.53  | no-DR, curriculum扩展中
+Phase 2 (iter 500-1500): reward 1.8→2.0, track 0.44→0.58  | light-DR, 满范围稳定跟踪 ★最佳阶段
+Phase 3 (iter 1500-2000): reward 2.0→2.2, track 0.4→0.6   | full-DR初期, peak=2.79 @iter2019
+Phase 4 (iter 2000-3500): reward 2.2→1.6, track 0.4→0.2   | full-DR, 缓慢退化
+Phase 5 (iter 3500-5000): reward 1.6→-0.3, track 0.2→0.0  | 策略崩塌
+```
+
+**最佳 checkpoint: iter 1500** (tracking≈0.55, reward≈2.0, 进入full-DR前的巅峰)
+
+**结论：部分成功 — 项目首次实现 2000+ iter 持续行走，但后期崩塌。**
+
+**根因分析（后期崩塌）：**
+- lr=3e-4 恒定过大：full-DR 下梯度方差增大，大 lr 破坏已学到的好策略
+- 无 entropy 衰减：后期探索过强，策略被噪声破坏
+- PPO 典型的"遗忘性崩塌"：梯度更新幅度 > 策略改善幅度 → 净退化
+
+**关键经验：**
+1. 前 1500 iter（no-DR + light-DR）训练非常成功，reward 设计终于正确
+2. Full-DR 切入后需要降 lr 保护策略
+3. 最佳策略在 iter 1500 左右，应该从此处续训并加 lr 衰减
+
+---
+
+## Round 7
+
+**核心原则：从最佳 checkpoint 续训 + lr/entropy 线性衰减防止崩塌**
+
+### 策略：
+
+从 Round 6 iter 1500 checkpoint 续训（tracking≈0.55 的最佳状态），加入：
+1. **LR 线性衰减**: 3e-4 → 1e-5（over 3000 iter）
+2. **Entropy 线性衰减**: 0.02 → 0.005
+3. **总 iter 减少到 3000**（续训不需要那么多）
+4. DR curriculum 同样从头开始（iter 0-500 no-DR 让续训网络重新适应）
+
+### 配置：
+
+```python
+lr: 3e-4 → 1e-5 (linear decay)
+entropy_coef: 0.02 → 0.005 (linear decay)
+n_iterations: 3000
+resume: teacher_iter1500.pth
+```
+
+### Round 7 实际结果（3000 iter 完成）
+
+```
+Iter   50: reward=3.20, track=1.33 | vx: [-0.10,1.00] | lr=3.0e-4 | no-DR  ← 续训策略太强
+Iter  500: reward=3.91, track=0.63 | vx: [-1.00,1.50] | lr=2.5e-4          ← curriculum 已满
+Iter 1000: reward=9.68, track=0.06 | vx: [-1.00,1.50] | lr=2.0e-4 | light-DR ← exploit!
+Iter 2000: reward=9.81, track=0.01 | vx: [-1.00,1.50] | lr=1.1e-4 | full-DR
+Iter 3000: reward=10.1, track=0.02 | vx: [-1.00,1.50] | lr=1.0e-5 | full-DR  ← lr衰减无效
+```
+
+**结论：失败。** lr 衰减没用——exploit 在 lr 还高的早期就已经形成，衰减只是锁住了坏策略。
+
+### 重大发现：Round 6 iter1500 的 "成功" 被高估
+
+**实际评估 Round 6 iter1500 checkpoint：**
+```
+Command: vx=0.5 m/s, 跑 200 steps
+Avg vx: -0.06 m/s（几乎不走！）
+策略在振荡，偶尔 ratio=0.64，大多数时候 ratio≈0 或负
+```
+
+**根因：** 训练中的 tracking_ratio 是 128 envs 瞬时值的平均，不代表持续前进。
+策略学到的是"随机振荡"而非"稳定行走"——在 128 envs 中总有一些 env 在某一步恰好 vx>0，拉高了平均值。
+
+**这意味着之前所有轮次中看到的 tracking_ratio 0.3-0.7 都可能是假象！**
+
+### 下一步方向（Round 8 需要根本性改变）
+
+tracking_ratio 作为监控指标是不可靠的（未 clip 的负值抵消正值）。需要：
+1. tracking_ratio 改为 clip([0, 1.5])，加 pct_positive 指标
+2. 每 200 iter 跑一个 deterministic eval episode，打印真实 avg_vx
+3. feet_air_time 必须有上限 clip（否则倒地悬空即可刷分）
+
+---
+
+## Round 8
+
+**核心原则：修复 feet_air_time exploit + 可靠监控指标 + trot schedule**
+
+### 发现的新 Bug（Round 8 第一次尝试就崩溃）
+
+**去掉 speed gate 后暴露了 feet_air_time 的无上限 exploit：**
+- 策略学到：让机器人跌倒/弹跳，四脚悬空
+- air_time 无上限累积（每脚可达 2s+），reward = 4脚 × 2s × 1.0 = 8/step
+- 这就是 reward=16 的来源！speed gate 之前掩盖了这个问题
+
+### 所有改动（vs Round 7）
+
+```python
+# go2_reward.py
+feet_air_time: clip per foot to [0, 0.3]  # 加上限，每脚最多 0.3s
+gait_schedule: * upright_gate             # 倒地时不给 trot 奖励
+# speed gate 完全移除（不再需要）
+
+# config.py
+tracking_sigma: 0.25->0.1               # 更尖锐，减少站立拿分
+base_height_sigma: 0.01->0.05           # 更平滑，早期训练友好
+action_rate_penalty: -0.01->-0.1        # 抑制振荡（关键）
+gait_schedule: 0.5                      # 新增 trot 步态引导
+
+# train_teacher.py
+tracking_ratio: clip到[0,1.5]，加pct30指标  # 修复虚假高值
+eval: 每200 iter 跑1个 det episode打印avg_vx  # 真实指标
+```
+
+### 验证结果（Round 8 第二次，iter 0-350）
+
+```
+Iter  50: reward=0.51, track=0.10 pct30= 7%  ← 无暴涨，健康起点
+Iter 200: reward=0.86, track=0.16 pct30=19%
+  [EVAL] iter200: avg_vx=0.041 m/s (低但在增长)
+Iter 350: reward=1.06, track=0.30 pct30=48%  ← 接近一半 envs 真的在走！
+```
+
+**这是 9 轮以来第一次看到 pct30 持续上升且 reward 不暴涨的健康曲线。**

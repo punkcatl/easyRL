@@ -144,6 +144,7 @@ class AsyncDRVecGo2Env:
         self._curriculum_threshold = cfg.get("cmd_curriculum_threshold", 0.5)
         self._curriculum_delta = cfg.get("cmd_curriculum_delta", 0.1)
         self._last_tracking_ratio = 0.0
+        self._last_pct_positive = 0.0
         self._curriculum_stable_count = 0
         self._current_iteration = 0
 
@@ -231,14 +232,19 @@ class AsyncDRVecGo2Env:
         dones   = np.array([r[2] for r in all_results], dtype=bool)
         priv    = np.array([r[3] for r in all_results], dtype=np.float32)
 
-        # Compute tracking ratio from cmd_vx and actual_vx (obs[0])
+        # Compute tracking ratio (clipped to [0, 1.5] — negative = not walking)
         tracking_ratios = []
         for r in all_results:
             cmd_vx = r[4]
-            actual_vx = r[0][0]  # obs[0] is base_lin_vel_x
+            actual_vx = r[0][0]
             if abs(cmd_vx) > 0.1:
-                tracking_ratios.append(actual_vx / cmd_vx)
-        self._last_tracking_ratio = float(np.mean(tracking_ratios)) if tracking_ratios else 0.0
+                tracking_ratios.append(float(np.clip(actual_vx / cmd_vx, 0.0, 1.5)))
+        if tracking_ratios:
+            self._last_tracking_ratio = float(np.mean(tracking_ratios))
+            self._last_pct_positive = float(np.mean([r > 0.3 for r in tracking_ratios]))
+        else:
+            self._last_tracking_ratio = 0.0
+            self._last_pct_positive = 0.0
 
         return obs, rewards, dones, priv
 

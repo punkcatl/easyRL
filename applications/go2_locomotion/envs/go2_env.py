@@ -169,10 +169,12 @@ class Go2Env(gym.Env):
             "default_joint_angles": self.default_angles,
             "joint_acc": joint_acc,
             "feet_air_time": self.feet_air_time.copy(),
+            "feet_contact": self._get_foot_contacts(),
             "base_height": float(self.data.qpos[2]),
             "body_contacts": self._get_body_contacts(),
             "projected_gravity": self._get_projected_gravity(),
             "terminated": terminated,
+            "time": float(self.step_count * self.config["control_dt"]),
         }
         reward, reward_components = self.reward_computer.compute(reward_state)
         truncated = self.step_count >= self.max_steps

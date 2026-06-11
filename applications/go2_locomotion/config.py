@@ -31,35 +31,36 @@ config = {
     "kd": np.array([1.0] * 12, dtype=np.float32),
     "default_joint_angles": DEFAULT_JOINT_ANGLES,
 
-    # === Reward: Round 6 — forward_progress dominant, exp tracking reduced ===
+    # === Reward: Round 8 — remove speed gates, sharp signals, trot schedule ===
     "reward_scales": {
-        # Velocity tracking (exp kernel, reduced — for precision after gait emerges)
+        # Velocity tracking
         "lin_vel_tracking": 1.0,
         "ang_vel_tracking": 0.3,
-        # Forward progress (dominant signal, linear gradient, standing = negative)
-        "forward_progress": 4.0,
-        # Feet (gated by body_speed to prevent hopping in place)
-        "feet_air_time_reward": 1.5,
-        # Base height (exp kernel around nominal)
-        "base_height_reward": 1.0,
-        # Termination (one-time penalty on terminated=True)
+        # Forward progress (linear, pure velocity projection, no baseline)
+        "forward_progress": 3.0,
+        # Gait shaping (trot schedule, no speed gate needed)
+        "feet_air_time_reward": 1.0,
+        "gait_schedule": 0.5,
+        # Base height (ungated)
+        "base_height_reward": 0.5,
+        # Termination
         "termination_penalty": -10.0,
-        # Orientation (light)
+        # Orientation
         "flat_orientation_penalty": -0.5,
         "lin_vel_z_penalty": -2.0,
         "ang_vel_xy_penalty": -0.05,
-        # Joint penalties (very light)
-        "action_rate_penalty": -0.01,
+        # Joint penalties
+        "action_rate_penalty": -0.1,    # 10x stronger: critical to suppress oscillation
         "torque_penalty": -0.00005,
         "joint_acc_penalty": -2.5e-7,
         # Safety
         "collision_penalty": -1.0,
-        # REMOVED: alive_bonus, joint_pos_penalty, low_speed_penalty
     },
-    "tracking_sigma": 0.25,             # 0.15->0.25 (Legged Gym default, smoother gradient)
+    "tracking_sigma": 0.1,              # sharper: less reward for wrong velocity
     "base_height_target": 0.34,
-    "base_height_sigma": 0.01,
+    "base_height_sigma": 0.05,          # wider: smoother height gradient early on
     "feet_air_time_threshold": 0.1,
+    "trot_period": 0.5,                 # 2Hz trot gait schedule
 
     # === Command ===
     "command_range": {
@@ -79,14 +80,16 @@ config = {
 
     # === PPO ===
     "lr": 3e-4,
+    "lr_end": 3e-5,             # linear decay target
     "gamma": 0.99,
     "gae_lambda": 0.95,
     "clip_eps": 0.2,
-    "epochs": 5,                # 10->5: with 128 envs, data reuse ratio is healthier
+    "epochs": 5,
     "batch_size": 512,
     "n_steps": 48,
     "max_grad_norm": 1.0,
-    "entropy_coef": 0.02,       # 0.01->0.02: more exploration early, with decay
+    "entropy_coef": 0.02,
+    "entropy_coef_end": 0.005,  # linear decay target
     "value_loss_coef": 1.0,
     "hidden_dim": 128,
     "n_iterations": 5000,

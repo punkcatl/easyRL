@@ -5,6 +5,35 @@ import torch.optim as optim
 from .networks import AsymmetricActorCritic
 
 
+class RunningMeanStd:
+    """Running mean/std for observation normalization."""
+
+    def __init__(self, shape, epsilon=1e-8):
+        self.mean = np.zeros(shape, dtype=np.float64)
+        self.var = np.ones(shape, dtype=np.float64)
+        self.count = epsilon
+
+    def update(self, batch):
+        batch_mean = batch.mean(axis=0)
+        batch_var = batch.var(axis=0)
+        batch_count = batch.shape[0]
+        self._update_from_moments(batch_mean, batch_var, batch_count)
+
+    def _update_from_moments(self, batch_mean, batch_var, batch_count):
+        delta = batch_mean - self.mean
+        total_count = self.count + batch_count
+        new_mean = self.mean + delta * batch_count / total_count
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        m2 = m_a + m_b + np.square(delta) * self.count * batch_count / total_count
+        self.mean = new_mean
+        self.var = m2 / total_count
+        self.count = total_count
+
+    def normalize(self, x):
+        return ((x - self.mean) / (np.sqrt(self.var) + 1e-8)).astype(np.float32)
+
+
 class PPOTrainer:
     """PPO with GAE for Go2 locomotion (asymmetric actor-critic)."""
 
@@ -19,6 +48,12 @@ class PPOTrainer:
         self.value_loss_coef = config["value_loss_coef"]
         self.privileged_dim = config["privileged_dim"]
 
+        self.obs_normalize = config.get("obs_normalize", False)
+        if self.obs_normalize:
+            self.obs_rms = RunningMeanStd(shape=(config["obs_dim"],))
+        else:
+            self.obs_rms = None
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.network = AsymmetricActorCritic(
             obs_dim=config["obs_dim"],
@@ -29,9 +64,15 @@ class PPOTrainer:
 
         self.optimizer = optim.Adam(self.network.parameters(), lr=config["lr"])
 
+    def normalize_obs(self, obs: np.ndarray) -> np.ndarray:
+        if self.obs_rms is not None:
+            return self.obs_rms.normalize(obs)
+        return obs
+
     def act(self, obs: np.ndarray, privileged: np.ndarray):
         """Sample actions for vectorized envs. Returns numpy arrays."""
-        obs_t = torch.FloatTensor(obs).to(self.device)
+        obs_norm = self.normalize_obs(obs)
+        obs_t = torch.FloatTensor(obs_norm).to(self.device)
         priv_t = torch.FloatTensor(privileged).to(self.device)
         with torch.no_grad():
             actions, log_probs, values, _ = self.network.act(obs_t, priv_t)
@@ -94,7 +135,22 @@ class PPOTrainer:
                 self.optimizer.step()
 
     def save(self, path):
-        torch.save(self.network.state_dict(), path)
+        state = {"network": self.network.state_dict()}
+        if self.obs_rms is not None:
+            state["obs_rms"] = {
+                "mean": self.obs_rms.mean,
+                "var": self.obs_rms.var,
+                "count": self.obs_rms.count,
+            }
+        torch.save(state, path)
 
     def load(self, path):
-        self.network.load_state_dict(torch.load(path, map_location=self.device))
+        state = torch.load(path, map_location=self.device)
+        if isinstance(state, dict) and "network" in state:
+            self.network.load_state_dict(state["network"])
+            if self.obs_rms is not None and "obs_rms" in state:
+                self.obs_rms.mean = state["obs_rms"]["mean"]
+                self.obs_rms.var = state["obs_rms"]["var"]
+                self.obs_rms.count = state["obs_rms"]["count"]
+        else:
+            self.network.load_state_dict(state)

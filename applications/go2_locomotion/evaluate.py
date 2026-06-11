@@ -37,6 +37,11 @@ def evaluate_teacher(model_path: str, n_episodes: int = 20, render: bool = False
     survival_count = 0
     max_steps = int(config["episode_length_s"] / config["control_dt"])
 
+    # Open viewer before first episode so it's ready
+    if render:
+        env.reset()
+        env.render()
+
     for ep in range(n_episodes):
         obs, _ = env.reset()
         ep_reward = 0.0

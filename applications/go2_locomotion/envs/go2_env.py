@@ -1,5 +1,6 @@
 import numpy as np
 import mujoco
+import mujoco.viewer
 import gymnasium as gym
 from gymnasium import spaces
 from pathlib import Path
@@ -22,7 +23,7 @@ class Go2Env(gym.Env):
         self.config = config
         self.render_mode = render_mode
 
-        xml_path = Path(__file__).resolve().parent.parent / "assets" / "go2_scene.xml"
+        xml_path = Path(__file__).resolve().parent.parent / "assets" / "scene.xml"
         self.model = mujoco.MjModel.from_xml_path(str(xml_path))
         self.data = mujoco.MjData(self.model)
 
@@ -43,6 +44,9 @@ class Go2Env(gym.Env):
         self.command = np.zeros(3, dtype=np.float32)
         self.step_count = 0
         self.feet_air_time = np.zeros(4, dtype=np.float32)
+        self.last_air_time = np.zeros(4, dtype=np.float32)      # last completed air phase duration
+        self.last_contact_time = np.zeros(4, dtype=np.float32)  # last completed contact phase duration
+        self._feet_in_contact = np.zeros(4, dtype=bool)
         self._last_joint_vel = np.zeros(12, dtype=np.float32)
 
         self.reward_computer = Go2RewardComputer(config)
@@ -51,6 +55,7 @@ class Go2Env(gym.Env):
 
         # Cache body/geom IDs for fast lookup
         self._calf_body_ids = self._get_calf_body_ids()
+        self._foot_geom_ids = self._get_foot_geom_ids()
         self._floor_geom_id = self._get_floor_geom_id()
 
         self._viewer = None
@@ -70,6 +75,14 @@ class Go2Env(gym.Env):
                 ids.append(bid)
         return ids
 
+    def _get_foot_geom_ids(self):
+        ids = []
+        for name in ["FL", "FR", "RL", "RR"]:
+            gid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, name)
+            if gid >= 0:
+                ids.append(gid)
+        return ids
+
     def _get_floor_geom_id(self):
         fid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
         return fid  # may be -1 if unnamed, fallback handled in contact check
@@ -80,11 +93,27 @@ class Go2Env(gym.Env):
 
         self.data.qpos[7:19] = self.default_angles
         self.data.qpos[2] = 0.34
+
+        if self.config.get("init_state_randomize", False):
+            noise = self.config["init_joint_pos_noise"]
+            self.data.qpos[7:19] += np.random.uniform(-noise, noise, 12)
+            h_range = self.config["init_base_height_range"]
+            self.data.qpos[2] = np.random.uniform(h_range[0], h_range[1])
+            v_range = self.config["init_base_lin_vel_range"]
+            self.data.qvel[:3] = np.random.uniform(v_range[0], v_range[1], 3)
+            av_range = self.config["init_base_ang_vel_range"]
+            self.data.qvel[3:6] = np.random.uniform(av_range[0], av_range[1], 3)
+            jv_range = self.config["init_joint_vel_range"]
+            self.data.qvel[6:18] = np.random.uniform(jv_range[0], jv_range[1], 12)
+
         mujoco.mj_forward(self.model, self.data)
 
         self.last_action = np.zeros(12, dtype=np.float32)
         self.step_count = 0
         self.feet_air_time = np.zeros(4, dtype=np.float32)
+        self.last_air_time = np.zeros(4, dtype=np.float32)
+        self.last_contact_time = np.zeros(4, dtype=np.float32)
+        self._feet_in_contact = np.zeros(4, dtype=bool)
         self._last_joint_vel = np.zeros(12, dtype=np.float32)
         self._pending_force = np.zeros(3, dtype=np.float32)
         self._pending_force_steps = 0
@@ -126,6 +155,8 @@ class Go2Env(gym.Env):
         if self.step_count % self.cmd_resample_interval == 0:
             self._resample_command()
 
+        terminated = self._check_termination()
+
         reward_state = {
             "base_lin_vel": self._get_base_linear_velocity(),
             "base_ang_vel": self._get_base_angular_velocity(),
@@ -133,14 +164,17 @@ class Go2Env(gym.Env):
             "torques": self.data.ctrl[:12].astype(np.float32),
             "actions": action,
             "last_actions": self.last_action,
+            "joint_pos": self._get_joint_positions(),
+            "joint_vel": joint_vel_now,
+            "default_joint_angles": self.default_angles,
             "joint_acc": joint_acc,
             "feet_air_time": self.feet_air_time.copy(),
+            "base_height": float(self.data.qpos[2]),
             "body_contacts": self._get_body_contacts(),
             "projected_gravity": self._get_projected_gravity(),
+            "terminated": terminated,
         }
         reward, reward_components = self.reward_computer.compute(reward_state)
-
-        terminated = self._check_termination()
         truncated = self.step_count >= self.max_steps
 
         self.last_action = action.copy()
@@ -194,21 +228,30 @@ class Go2Env(gym.Env):
 
     def _update_feet_air_time(self):
         contacts = self._get_foot_contacts()
+        dt = self.config["control_dt"]
         for i in range(4):
-            if contacts[i]:
+            was_in_contact = self._feet_in_contact[i]
+            now_in_contact = contacts[i]
+            if now_in_contact:
+                if not was_in_contact:
+                    # foot just landed: record completed air phase
+                    self.last_air_time[i] = self.feet_air_time[i]
                 self.feet_air_time[i] = 0.0
+                self.last_contact_time[i] += dt
             else:
-                self.feet_air_time[i] += self.config["control_dt"]
+                if was_in_contact:
+                    # foot just lifted: record completed contact phase
+                    self.last_contact_time[i] = 0.0
+                self.feet_air_time[i] += dt
+            self._feet_in_contact[i] = now_in_contact
 
     def _get_foot_contacts(self):
-        """Returns (4,) bool: whether each calf body is in contact."""
+        """Returns (4,) bool: whether each foot geom is in contact."""
         contacts = np.zeros(4, dtype=bool)
         for ci in range(self.data.ncon):
             c = self.data.contact[ci]
-            b1 = self.model.geom_bodyid[c.geom1]
-            b2 = self.model.geom_bodyid[c.geom2]
-            for i, bid in enumerate(self._calf_body_ids):
-                if b1 == bid or b2 == bid:
+            for i, gid in enumerate(self._foot_geom_ids):
+                if c.geom1 == gid or c.geom2 == gid:
                     contacts[i] = True
         return contacts
 

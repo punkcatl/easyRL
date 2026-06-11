@@ -102,25 +102,75 @@ def train_student(cfg=None):
     batch_size = cfg["student_batch_size"]
     n_epochs = cfg["student_epochs"]
     n_samples = len(obs_history)
-    loss_history = []
+    patience = cfg.get("student_early_stop_patience", 15)
+    val_ratio = cfg.get("student_val_ratio", 0.1)
+
+    # Train / val split
+    n_val = int(n_samples * val_ratio)
+    n_train = n_samples - n_val
+    perm = np.random.permutation(n_samples)
+    train_idx, val_idx = perm[:n_train], perm[n_train:]
+
+    train_hist = obs_history[train_idx]
+    train_obs  = obs_current[train_idx]
+    train_acts = actions[train_idx]
+    val_hist   = obs_history[val_idx]
+    val_obs    = obs_current[val_idx]
+    val_acts   = actions[val_idx]
+
+    print(f"  Train: {n_train} samples  |  Val: {n_val} samples")
+
+    train_loss_history = []
+    val_loss_history = []
+    best_val_loss = float("inf")
+    no_improve = 0
 
     for epoch in range(n_epochs):
-        indices = np.random.permutation(n_samples)
+        # Training
+        indices = np.random.permutation(n_train)
         epoch_losses = []
-        for start in range(0, n_samples, batch_size):
-            end = min(start + batch_size, n_samples)
-            idx = indices[start:end]
-            loss = student.train_step(obs_history[idx], obs_current[idx], actions[idx])
+        for start in range(0, n_train, batch_size):
+            end = min(start + batch_size, n_train)
+            b = indices[start:end]
+            loss = student.train_step(train_hist[b], train_obs[b], train_acts[b])
             epoch_losses.append(loss)
-        avg = float(np.mean(epoch_losses))
-        loss_history.append(avg)
-        if (epoch + 1) % 10 == 0:
-            print(f"  Epoch {epoch + 1}/{n_epochs} | Loss: {avg:.6f}")
+        train_avg = float(np.mean(epoch_losses))
+        train_loss_history.append(train_avg)
 
-    student.save(str(results_dir / "student_final.pth"))
-    np.save(str(results_dir / "student_losses.npy"), np.array(loss_history))
-    print("Student training complete.")
-    return loss_history
+        # Validation (no grad)
+        import torch
+        with torch.no_grad():
+            val_losses = []
+            for start in range(0, n_val, batch_size):
+                end = min(start + batch_size, n_val)
+                b = slice(start, end)
+                hist_t = torch.FloatTensor(val_hist[b]).to(student.device)
+                obs_t  = torch.FloatTensor(val_obs[b]).to(student.device)
+                tgt_t  = torch.FloatTensor(val_acts[b]).to(student.device)
+                z = student.adaptation(hist_t)
+                pred = student.policy(obs_t, z)
+                val_losses.append(torch.nn.functional.mse_loss(pred, tgt_t).item())
+        val_avg = float(np.mean(val_losses))
+        val_loss_history.append(val_avg)
+
+        if (epoch + 1) % 10 == 0:
+            print(f"  Epoch {epoch + 1}/{n_epochs} | Train: {train_avg:.6f}  Val: {val_avg:.6f}")
+
+        # Early stopping
+        if val_avg < best_val_loss:
+            best_val_loss = val_avg
+            no_improve = 0
+            student.save(str(results_dir / "student_final.pth"))  # save best
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                print(f"  Early stopping at epoch {epoch + 1} (no val improvement for {patience} epochs)")
+                break
+
+    np.save(str(results_dir / "student_train_losses.npy"), np.array(train_loss_history))
+    np.save(str(results_dir / "student_val_losses.npy"), np.array(val_loss_history))
+    print(f"Student training complete. Best val loss: {best_val_loss:.6f}")
+    return train_loss_history
 
 
 if __name__ == "__main__":

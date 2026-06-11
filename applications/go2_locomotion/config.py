@@ -39,9 +39,10 @@ config = {
         "joint_acc_penalty": -2.5e-7,
         "feet_air_time_reward": 1.0,
         "collision_penalty": -1.0,
-        "alive_bonus": 0.0,
+        "alive_bonus": 0.1,             # small positive signal to survive early training
     },
     "tracking_sigma": 0.25,
+    "feet_air_time_threshold": 0.2,     # feet air time > 0.2s triggers reward (was 0.5s = never)
 
     # === Command ===
     "command_range": {
@@ -57,8 +58,8 @@ config = {
     "gae_lambda": 0.95,
     "clip_eps": 0.2,
     "epochs": 5,
-    "batch_size": 4096,
-    "n_steps": 24,
+    "batch_size": 512,          # n_steps(128) * num_envs(32) = 4096 >> batch_size
+    "n_steps": 128,             # 128 * 32 envs = 4096 steps per update
     "max_grad_norm": 1.0,
     "entropy_coef": 0.01,
     "value_loss_coef": 1.0,
@@ -73,7 +74,7 @@ config = {
     "dr_motor_strength_range": [0.9, 1.1],
     "dr_kp_range": [0.8, 1.2],
     "dr_kd_range": [0.8, 1.2],
-    "dr_action_delay_range": [0, 2],
+    # note: action delay randomization is not yet implemented in domain_randomization.py
 
     # === Terrain Curriculum ===
     "terrain_types": ["flat", "rough", "slope", "stairs"],
@@ -81,12 +82,14 @@ config = {
     "curriculum_start_difficulty": 0.0,
 
     # === Teacher-Student ===
-    "student_history_length": 50,
+    "student_history_length": 20,       # 20 * 48D = 960D input (was 50*48=2400D, too large)
     "student_latent_dim": 16,
     "student_lr": 1e-3,
-    "student_epochs": 100,
+    "student_epochs": 200,              # more epochs with early stopping
     "student_batch_size": 256,
     "distill_dataset_size": 500_000,
+    "student_val_ratio": 0.1,           # 10% held out for validation + early stopping
+    "student_early_stop_patience": 15,  # stop if val loss doesn't improve for 15 epochs
 
     # === Termination ===
     "terminate_on_body_contact": True,

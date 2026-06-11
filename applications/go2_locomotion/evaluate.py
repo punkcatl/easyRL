@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import argparse
+import time
 import numpy as np
 import torch
 
@@ -42,6 +43,8 @@ def evaluate_teacher(model_path: str, n_episodes: int = 20, render: bool = False
         ep_steps = 0
 
         while True:
+            step_start = time.perf_counter()
+
             obs_t = torch.FloatTensor(obs).unsqueeze(0).to(trainer.device)
             priv_t = torch.zeros(1, config["privileged_dim"]).to(trainer.device)
             with torch.no_grad():
@@ -54,6 +57,11 @@ def evaluate_teacher(model_path: str, n_episodes: int = 20, render: bool = False
 
             if render:
                 env.render()
+                # throttle to real-time (control_dt = 0.02s = 50Hz)
+                elapsed = time.perf_counter() - step_start
+                sleep_time = config["control_dt"] - elapsed
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
 
             if terminated or truncated:
                 break
@@ -94,6 +102,8 @@ def evaluate_student(model_path: str, n_episodes: int = 20, render: bool = False
         ep_steps = 0
 
         while True:
+            step_start = time.perf_counter()
+
             history = np.roll(history, -1, axis=0)
             history[-1] = obs
             action = student.get_action(history.flatten(), obs)
@@ -103,6 +113,10 @@ def evaluate_student(model_path: str, n_episodes: int = 20, render: bool = False
 
             if render:
                 env.render()
+                elapsed = time.perf_counter() - step_start
+                sleep_time = config["control_dt"] - elapsed
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
 
             if terminated or truncated:
                 break

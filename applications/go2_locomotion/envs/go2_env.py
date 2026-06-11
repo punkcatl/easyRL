@@ -55,6 +55,13 @@ class Go2Env(gym.Env):
 
         self._viewer = None
 
+        # External force injection (for benchmark perturbation tests)
+        self._base_body_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "base"
+        )
+        self._pending_force = np.zeros(3, dtype=np.float32)
+        self._pending_force_steps = 0
+
     def _get_calf_body_ids(self):
         ids = []
         for name in ["FL_calf", "FR_calf", "RL_calf", "RR_calf"]:
@@ -79,6 +86,10 @@ class Go2Env(gym.Env):
         self.step_count = 0
         self.feet_air_time = np.zeros(4, dtype=np.float32)
         self._last_joint_vel = np.zeros(12, dtype=np.float32)
+        self._pending_force = np.zeros(3, dtype=np.float32)
+        self._pending_force_steps = 0
+        if self._base_body_id >= 0:
+            self.data.xfrc_applied[self._base_body_id, :3] = 0.0
         self._resample_command()
 
         obs = self._get_obs()
@@ -88,6 +99,15 @@ class Go2Env(gym.Env):
     def step(self, action):
         action = np.clip(action, -1.0, 1.0).astype(np.float32)
         target_angles = self.action_scale * action + self.default_angles
+
+        # Apply pending external force (for perturbation tests)
+        if self._pending_force_steps > 0:
+            self.data.xfrc_applied[self._base_body_id, :3] = self._pending_force
+            self._pending_force_steps -= 1
+            if self._pending_force_steps == 0:
+                self.data.xfrc_applied[self._base_body_id, :3] = 0.0
+        else:
+            self.data.xfrc_applied[self._base_body_id, :3] = 0.0
 
         for _ in range(self.decimation):
             joint_pos = self.data.qpos[7:19].astype(np.float32)
@@ -216,6 +236,15 @@ class Go2Env(gym.Env):
         self.command[0] = np.random.uniform(*self.cmd_range["lin_vel_x"])
         self.command[1] = np.random.uniform(*self.cmd_range["lin_vel_y"])
         self.command[2] = np.random.uniform(*self.cmd_range["ang_vel_yaw"])
+
+    def apply_force(self, force_vec: np.ndarray, duration_steps: int):
+        """Apply external force to base body for duration_steps control steps.
+
+        force_vec: (3,) array in world frame [Fx, Fy, Fz] in Newtons.
+        Called before step(); force is applied during the next duration_steps steps.
+        """
+        self._pending_force = np.array(force_vec, dtype=np.float32)
+        self._pending_force_steps = int(duration_steps)
 
     def render(self):
         if self.render_mode == "human":

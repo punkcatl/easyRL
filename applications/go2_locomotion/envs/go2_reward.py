@@ -7,6 +7,7 @@ class Go2RewardComputer:
     def __init__(self, config):
         self.scales = config["reward_scales"]
         self.sigma = config["tracking_sigma"]
+        self.feet_air_time_threshold = config.get("feet_air_time_threshold", 0.2)
 
     def compute(self, state: dict) -> tuple:
         """
@@ -32,7 +33,7 @@ class Go2RewardComputer:
         )
         components["joint_acc_penalty"] = np.sum(state["joint_acc"] ** 2)
         components["feet_air_time_reward"] = np.sum(
-            np.clip(state["feet_air_time"] - 0.5, 0.0, None)
+            np.clip(state["feet_air_time"] - self.feet_air_time_threshold, 0.0, None)
         )
         components["collision_penalty"] = float(state["body_contacts"])
 

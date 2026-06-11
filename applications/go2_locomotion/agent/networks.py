@@ -13,7 +13,7 @@ class ActorCritic(nn.Module):
             nn.Linear(hidden_dim, hidden_dim), nn.ELU(),
         )
         self.actor_mean = nn.Linear(hidden_dim, action_dim)
-        self.actor_log_std = nn.Parameter(torch.zeros(action_dim))
+        self.actor_log_std = nn.Parameter(torch.full((action_dim,), -0.5))
 
         self.critic = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim), nn.ELU(),
@@ -54,7 +54,7 @@ class AsymmetricActorCritic(nn.Module):
             nn.Linear(hidden_dim, hidden_dim), nn.ELU(),
         )
         self.actor_mean = nn.Linear(hidden_dim, action_dim)
-        self.actor_log_std = nn.Parameter(torch.zeros(action_dim))
+        self.actor_log_std = nn.Parameter(torch.full((action_dim,), -0.5))
 
         self.critic_net = nn.Sequential(
             nn.Linear(obs_dim + privileged_dim, hidden_dim), nn.ELU(),

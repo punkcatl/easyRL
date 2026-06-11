@@ -35,25 +35,27 @@ class Go2RewardComputer:
         ang_vel_error = (state["command"][2] - state["base_ang_vel"][2]) ** 2
         components["ang_vel_tracking"] = np.exp(-ang_vel_error / self.sigma)
 
-        # --- Forward progress (linear, clip to prevent reward from moving backward) ---
+        # --- Forward progress (with baseline subtraction: standing = negative) ---
         cmd_dir = state["command"][:2]
         cmd_norm = np.linalg.norm(cmd_dir)
         if cmd_norm > 0.1:
             unit_cmd = cmd_dir / cmd_norm
             vel_in_cmd_dir = np.dot(state["base_lin_vel"][:2], unit_cmd)
-            components["forward_progress"] = float(np.clip(vel_in_cmd_dir, -0.5, 2.0))
+            components["forward_progress"] = float(
+                np.clip(vel_in_cmd_dir, -0.5, 2.0) - 0.3 * cmd_norm
+            )
         else:
             components["forward_progress"] = 0.0
 
-        # --- Base height (exp kernel around target) ---
+        # --- Base height (gated by body_speed: no free reward for standing) ---
         height_error = (state["base_height"] - self.base_height_target) ** 2
-        components["base_height_reward"] = np.exp(-height_error / self.base_height_sigma)
+        speed_gate = float(np.clip(body_speed / 0.3, 0.0, 1.0))
+        components["base_height_reward"] = np.exp(-height_error / self.base_height_sigma) * speed_gate
 
         # --- Feet air time (gated by body_speed to prevent hopping in place) ---
         raw_air = np.sum(
             np.clip(state["feet_air_time"] - self.feet_air_time_threshold, 0.0, None)
         )
-        speed_gate = float(np.clip(body_speed / 0.3, 0.0, 1.0))
         components["feet_air_time_reward"] = raw_air * speed_gate
 
         # --- Base stability ---

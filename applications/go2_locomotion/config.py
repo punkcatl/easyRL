@@ -31,13 +31,13 @@ config = {
     "kd": np.array([1.0] * 12, dtype=np.float32),
     "default_joint_angles": DEFAULT_JOINT_ANGLES,
 
-    # === Reward: Round 5 — forward_progress driven, no alive_bonus ===
+    # === Reward: Round 6 — forward_progress dominant, exp tracking reduced ===
     "reward_scales": {
-        # Velocity tracking (exp kernel)
-        "lin_vel_tracking": 3.0,
-        "ang_vel_tracking": 0.5,
-        # Forward progress (linear, monotonic gradient from 0 to target speed)
-        "forward_progress": 2.0,
+        # Velocity tracking (exp kernel, reduced — for precision after gait emerges)
+        "lin_vel_tracking": 1.0,
+        "ang_vel_tracking": 0.3,
+        # Forward progress (dominant signal, linear gradient, standing = negative)
+        "forward_progress": 4.0,
         # Feet (gated by body_speed to prevent hopping in place)
         "feet_air_time_reward": 1.5,
         # Base height (exp kernel around nominal)

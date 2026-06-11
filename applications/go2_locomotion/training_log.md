@@ -262,6 +262,25 @@ joint_acc_penalty:        -2.5e-7
 
 **目标：** avg vx > 0.3 m/s，tracking_ratio > 0.5，feet_air_time_reward > 0。
 
+### Round 4b 实际结果（900 iter 后终止）
+
+```
+Iter  50: reward=4.72,  track_ratio=0.14
+Iter 200: reward=15.06, track_ratio=0.02
+Iter 450: reward=16.16, track_ratio=0.05
+Iter 650: reward=17.27, track_ratio=0.08
+Iter 900: reward=13.74, track_ratio=0.04
+```
+
+**结论：失败。** Reward 涨到 15-17 但 tracking_ratio 始终 ≈ 0.02-0.08（机器人几乎不走）。
+策略再次找到不走路但拿高分的漏洞：
+- sigma=0.15 时 cmd=0.5 站着仍得 exp(-0.25/0.15)×5.0 = 0.94
+- ang_vel_tracking 站着满分 = 0.5
+- alive_bonus = 0.5/step 无条件奖励存活
+- 合计站着能拿 ~1.9/step，加上减少惩罚后策略收敛到 reward≈16 但 velocity≈0
+
+**教训：** sigma 太小 + alive_bonus + 缺乏线性前进梯度 = 站立依然是强局部最优。必须同时修复。
+
 ---
 
 ## Round 5
@@ -328,3 +347,69 @@ min_body_height: 0.20, max_body_height: 0.45
 - `tracking_ratio > 0` → 机器人在追踪命令方向
 - `feet_air_time > 0` → 有抬脚动作
 - 如果 200 iter 后 velocity ≈ 0 → 存在更深层 bug，需 debug 而非调参
+
+### Round 5 实际结果（1050 iter 后终止）
+
+```
+Iter   50: reward=2.43,  track=0.05 | vx: [0.30, 0.60]  | no-DR
+Iter  150: reward=3.34,  track=0.47 | vx: [-0.20, 1.10] | no-DR   ← 首次走起来！
+Iter  350: reward=3.10,  track=0.39 | vx: [-1.00, 1.50] | no-DR   ← curriculum 满范围
+Iter  500: reward=3.57,  track=0.37 | vx: [-1.00, 1.50] | no-DR   ← 稳步提升
+Iter  700: reward=4.20,  track=0.34 | vx: [-1.00, 1.50] | light-DR
+Iter  750: reward=5.69,  track=0.13 | vx: [-1.00, 1.50] | light-DR ← exploit 开始
+Iter  850: reward=9.51,  track=0.05 | vx: [-1.00, 1.50] | light-DR ← 崩溃
+Iter 1050: reward=10.73, track=-0.01 | vx: [-1.00, 1.50] | light-DR ← 完全不走了
+```
+
+**结论：部分成功，最终失败。** 
+前 500 iter 是项目首次实现真正行走（tracking 0.3-0.5），但在 light-DR 阶段策略再次发现 exploit。
+
+**根因分析（三个同时存在的漏洞）：**
+1. `base_height_reward=1.0` 站着就满分（无速度门控）
+2. `forward_progress` 站着 = 0（不是负值），不够惩罚
+3. `lin_vel_tracking=3.0` + sigma=0.25，cmd 范围扩展到含零区域后，站着仍能拿高分
+4. Curriculum 扩展太快（一次 > threshold 就扩展），策略还没稳定就被推到更难范围
+
+**教训：**
+- 所有"无条件正奖励"（height, ang_vel）都是站立 exploit 的温床
+- forward_progress 必须让站着为负，不能为零
+- Curriculum 需要连续稳定才能扩展（加 stable_count）
+
+---
+
+## Round 6
+
+**核心原则：forward_progress 绝对主导 + 所有正向奖励 speed-gated + 站着净负**
+
+### 修复 3 个问题：
+
+1. **forward_progress** 带 baseline subtraction: `clip(vel_in_cmd, -0.5, 2.0) - 0.3*cmd_norm`
+   → 站着时 forward_progress = -0.3*cmd_norm（负的！）
+2. **base_height_reward** speed-gated: `exp(error) * clip(body_speed/0.3, 0, 1)`
+   → 站着时 = 0
+3. **lin_vel_tracking 降权 3.0→1.0**，forward_progress **升权 2.0→4.0**
+   → forward_progress 成为绝对主导驱动信号
+4. **Curriculum 稳定条件**：需连续 10 次 tracking > threshold 才扩展
+
+### 配置变更（vs Round 5）：
+
+```python
+# Reward
+lin_vel_tracking:       1.0     # 3.0->1.0 (精调阶段用，学步阶段不该主导)
+ang_vel_tracking:       0.3     # 0.5->0.3
+forward_progress:       4.0     # 2.0->4.0 (绝对主导, baseline subtracted)
+# forward_progress formula: (clip(vel_in_cmd_dir, -0.5, 2.0) - 0.3*cmd_norm) * 4.0
+# base_height_reward: gated by clip(body_speed/0.3, 0, 1)
+# Curriculum: stable_count >= 10 before expansion
+```
+
+### Reward 验证：
+
+| 场景 | standing | walking 70% | 差距 |
+|------|----------|-------------|------|
+| 全范围平均 | **-0.13** | **+2.67** | **2.80** |
+| cmd=0.5 | +0.07 | +3.5 | +3.4 |
+| cmd=1.0 | -0.88 | +3.2 | +4.1 |
+| cmd=1.5 | -1.50 | +2.8 | +4.3 |
+
+站着在大多数命令下是净负的！只有 cmd≈0 时站着勉强为正（1.3），但初始范围不含零。

@@ -45,6 +45,7 @@ class DRVecGo2Env:
         self._curriculum_threshold = cfg.get("cmd_curriculum_threshold", 0.5)
         self._curriculum_delta = cfg.get("cmd_curriculum_delta", 0.1)
         self._last_tracking_ratio = 0.0
+        self._curriculum_stable_count = 0
 
         # DR curriculum state
         self._dr_curriculum = cfg.get("dr_curriculum", False)
@@ -80,6 +81,12 @@ class DRVecGo2Env:
 
     def _update_curriculum(self, avg_tracking_ratio: float):
         if avg_tracking_ratio > self._curriculum_threshold:
+            self._curriculum_stable_count += 1
+        else:
+            self._curriculum_stable_count = max(0, self._curriculum_stable_count - 1)
+        # Only expand after 10 consecutive passes (stable tracking, not a spike)
+        if self._curriculum_stable_count >= 10:
+            self._curriculum_stable_count = 0
             delta = self._curriculum_delta
             lx = self._cmd_range["lin_vel_x"]
             lim = self._cmd_limit["lin_vel_x"]

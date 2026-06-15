@@ -112,14 +112,15 @@ class DRVecGo2Env:
         else:
             self._curriculum_stable_count = max(0, self._curriculum_stable_count - 1)
         # Only expand after 10 consecutive passes (stable tracking, not a spike)
-        if self._curriculum_stable_count >= 10:
+        if self._curriculum_stable_count >= 5:
             self._curriculum_stable_count = 0
             delta = self._curriculum_delta
             lx = self._cmd_range["lin_vel_x"]
             lim = self._cmd_limit["lin_vel_x"]
-            new_lo = max(lim[0], lx[0] - delta)
+            # Only expand upper bound — lower bound stays fixed (avoid near-zero commands)
+            new_lo = lx[0]
             new_hi = min(lim[1], lx[1] + delta)
-            if new_lo != lx[0] or new_hi != lx[1]:
+            if new_hi != lx[1]:
                 self._cmd_range["lin_vel_x"] = [new_lo, new_hi]
                 for env in self.envs:
                     env.cmd_range["lin_vel_x"] = [new_lo, new_hi]

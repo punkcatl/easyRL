@@ -185,14 +185,16 @@ class AsyncDRVecGo2Env:
             self._curriculum_stable_count += 1
         else:
             self._curriculum_stable_count = max(0, self._curriculum_stable_count - 1)
-        if self._curriculum_stable_count >= 10:
+        if self._curriculum_stable_count >= 5:
             self._curriculum_stable_count = 0
             delta = self._curriculum_delta
             lx = self._cmd_range["lin_vel_x"]
             lim = self._cmd_limit["lin_vel_x"]
-            new_lo = max(lim[0], lx[0] - delta)
+            # Only expand the upper bound (faster forward) — never lower below 0.2
+            # Expanding downward toward 0 causes deterministic policy to choose standing still
+            new_lo = lx[0]  # keep lower bound fixed
             new_hi = min(lim[1], lx[1] + delta)
-            if new_lo != lx[0] or new_hi != lx[1]:
+            if new_hi != lx[1]:
                 self._cmd_range["lin_vel_x"] = [new_lo, new_hi]
                 for conn in self._conns:
                     conn.send(("update_cmd_range", self._cmd_range))

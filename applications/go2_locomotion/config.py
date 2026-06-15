@@ -26,31 +26,34 @@ config = {
 
     # === Action (12D) ===
     "action_dim": 12,
-    "action_scale": 0.25,       # 0.35->0.25: paired with higher kp for same torque range
+    "action_scale": 0.35,       # R15: larger stride, needed for faster walking
     "kp": np.array([20, 35, 35, 20, 35, 35, 20, 35, 35, 20, 35, 35], dtype=np.float32),
     "kd": np.array([1.0] * 12, dtype=np.float32),
     "default_joint_angles": DEFAULT_JOINT_ANGLES,
 
-    # === Reward: Round 8 — remove speed gates, sharp signals, trot schedule ===
+    # === Reward: Round 11 — kill lurching, force stable trot ===
     "reward_scales": {
-        # Velocity tracking
-        "lin_vel_tracking": 1.0,
+        # Velocity tracking: exp kernel drives toward commanded speed
+        "lin_vel_tracking": 3.0,        # R14: 1.0->3.0, stronger cmd-following signal
         "ang_vel_tracking": 0.3,
-        # Forward progress (linear, pure velocity projection, no baseline)
-        "forward_progress": 3.0,
-        # Gait shaping (trot schedule, no speed gate needed)
+        # Forward progress: raw velocity (faster is always better)
+        "forward_progress": 1.5,
+        # Gait shaping (competitive with velocity reward)
         "feet_air_time_reward": 1.0,
-        "gait_schedule": 0.5,
+        "gait_schedule": 2.0,           # 4x increase, now competitive
+        "gait_symmetry": 1.5,           # new: diagonal anti-phase reward
+        # Penalty for all-feet-down (lurch ground phase)
+        "all_feet_contact_penalty": -1.5,
         # Base height (ungated)
         "base_height_reward": 0.5,
         # Termination
         "termination_penalty": -10.0,
-        # Orientation
+        # Orientation (stronger: penalize fall dynamics)
         "flat_orientation_penalty": -0.5,
         "lin_vel_z_penalty": -2.0,
-        "ang_vel_xy_penalty": -0.05,
+        "ang_vel_xy_penalty": -0.05,    # restored: -0.3 was too strong, killed mean action
         # Joint penalties
-        "action_rate_penalty": -0.1,    # 10x stronger: critical to suppress oscillation
+        "action_rate_penalty": -0.1,
         "torque_penalty": -0.00005,
         "joint_acc_penalty": -2.5e-7,
         # Safety
@@ -64,7 +67,7 @@ config = {
 
     # === Command ===
     "command_range": {
-        "lin_vel_x": [0.3, 0.6],
+        "lin_vel_x": [0.3, 0.8],   # R14: moderate range, lin_vel_tracking drives speed
         "lin_vel_y": [-0.1, 0.1],
         "ang_vel_yaw": [-0.3, 0.3],
     },
@@ -73,14 +76,14 @@ config = {
         "lin_vel_y": [-0.5, 0.5],
         "ang_vel_yaw": [-1.0, 1.0],
     },
-    "cmd_curriculum_threshold": 0.5,
+    "cmd_curriculum_threshold": 0.6,    # R13
     "cmd_curriculum_delta": 0.1,
     "rel_standing_envs": 0.0,
     "command_resample_interval": 100,
 
     # === PPO ===
-    "lr": 3e-4,
-    "lr_end": 3e-5,             # linear decay target
+    "lr": 3e-4,                 # R15: fresh start (action_scale changed)
+    "lr_end": 3e-5,
     "gamma": 0.99,
     "gae_lambda": 0.95,
     "clip_eps": 0.2,

@@ -5,6 +5,44 @@
 
 ---
 
+## Current Status (Round 15, 2026-06-15)
+
+| 指标 | 值 |
+|------|---|
+| 阶段 | Phase 1 Teacher 训练完成 |
+| 训练轮次 | Round 15 (5000 iter) |
+| 最终 reward | ~4.9 |
+| 评估速度 | avg_vx ≈ 1.0 m/s (cmd=1.0) |
+| tracking ratio | ~0.98 |
+| 存活率 (pct30) | 98-100% |
+| 命令范围 | vx [0.30, 1.50] 已完全扩展 |
+| DR | full (friction/mass/ext_force/motor) |
+| 最优 checkpoint | `results/teacher_round15.pth` |
+
+**迭代历程简述：**
+- R1-R3：解决"站着不动"局部最优（reward 漏洞修复）
+- R4-R5：正向 reward 主导 + curriculum 基于实际速度
+- R6-R8：修复 feet_air_time exploit，加入 trot gait schedule
+- R9-R14：gait shaping、forward_progress、稳定性调优
+- R15：action_scale 0.35 重训，实现 1.0 m/s 稳定行走
+
+**关键架构：**
+- Teacher-Student 框架：先训 teacher（有 privileged info），再蒸馏到 student
+- PPO + Curriculum：命令范围渐进扩展 + DR 分阶段引入
+- Obs 48D / Action 12D：标准四足控制
+- 128 并行环境 / async vectorized
+
+**Checkpoint：**
+- 最新模型：`results/teacher_round15.pth`
+- 中间 checkpoint：`results/teacher_iter500.pth` ~ `teacher_iter5000.pth`（每 500 iter）
+- 历轮最优：`results/teacher_round1.pth` ~ `teacher_round15.pth`
+- Reward 曲线：`results/teacher_rewards_round{1..15}.npy`
+- 训练日志：`results/train_log_round{2..15}.txt`
+
+**下一步：** Phase 2 Student 蒸馏（RMA + Behavior Cloning）
+
+---
+
 ## 一、完整 Pipeline 流程
 
 ### 1.1 总览

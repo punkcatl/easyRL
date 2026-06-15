@@ -50,7 +50,8 @@ def evaluate_teacher(model_path: str, n_episodes: int = 20, render: bool = False
         while True:
             step_start = time.perf_counter()
 
-            obs_t = torch.FloatTensor(obs).unsqueeze(0).to(trainer.device)
+            obs_norm = trainer.normalize_obs(obs[None])[0]
+            obs_t = torch.FloatTensor(obs_norm).unsqueeze(0).to(trainer.device)
             priv_t = torch.zeros(1, config["privileged_dim"]).to(trainer.device)
             with torch.no_grad():
                 mean, _ = trainer.network.forward_actor(obs_t)

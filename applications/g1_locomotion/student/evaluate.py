@@ -69,7 +69,8 @@ def main():
     env_cfg: ManagerBasedRLEnvCfg = gym.spec(args_cli.task).kwargs["env_cfg_entry_point"]()
     env_cfg.scene.num_envs = args_cli.num_envs
     env = gym.make(args_cli.task, cfg=env_cfg)
-    env = RslRlVecEnvWrapper(env, clip_actions=True)
+    agent_cfg = gym.spec(args_cli.task).kwargs["rsl_rl_cfg_entry_point"]()
+    env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
     num_envs = args_cli.num_envs
     history_length = args_cli.history_length
@@ -83,7 +84,8 @@ def main():
     max_steps = int(env_cfg.episode_length_s / (env_cfg.sim.dt * env_cfg.decimation))
     completed_episodes = 0
 
-    obs, _ = env.get_observations()
+    obs_td = env.get_observations()
+    obs_tensor = obs_td["policy"] if "policy" in obs_td.keys() else list(obs_td.values())[0]
     current_rewards = torch.zeros(num_envs, device=device)
     current_lengths = torch.zeros(num_envs, dtype=torch.long, device=device)
 
@@ -92,21 +94,22 @@ def main():
     while completed_episodes < args_cli.episodes:
         # Update history
         obs_history_buf = torch.roll(obs_history_buf, shifts=-1, dims=1)
-        obs_history_buf[:, -1, :] = obs
+        obs_history_buf[:, -1, :] = obs_tensor
 
         # Student inference
         with torch.no_grad():
             hist_flat = obs_history_buf.reshape(num_envs, -1)
             z = adaptation(hist_flat)
-            actions = policy(obs, z)
+            actions = policy(obs_tensor, z)
 
         # Step
-        obs, rewards, dones, truncated, infos = env.step(actions)
+        obs_td, rewards, dones, infos = env.step(actions)
+        obs_tensor = obs_td["policy"] if "policy" in obs_td.keys() else list(obs_td.values())[0]
         current_rewards += rewards
         current_lengths += 1
 
         # Check for done episodes
-        done_mask = dones.bool() | truncated.bool() if truncated is not None else dones.bool()
+        done_mask = dones.bool()
         if done_mask.any():
             for i in done_mask.nonzero(as_tuple=True)[0]:
                 episode_rewards.append(current_rewards[i].item())

@@ -63,14 +63,30 @@ def main():
     env = gym.make(args_cli.task, cfg=env_cfg)
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
+    # Infer network dims from checkpoint
+    import torch as _torch
+    _sd = _torch.load(resume_path, map_location="cpu")
+    if "model_state_dict" in _sd:
+        _sd = _sd["model_state_dict"]
+    _dims = []
+    _i = 0
+    while f"actor.{_i}.weight" in _sd:
+        _dims.append(_sd[f"actor.{_i}.weight"].shape[0])
+        _i += 2
+    agent_cfg.policy.actor_hidden_dims = _dims[:-1]
+    agent_cfg.policy.critic_hidden_dims = _dims[:-1]
+
     # Load teacher
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device="cuda:0")
     runner.load(resume_path)
     policy = runner.get_inference_policy(device="cuda:0")
 
     # Determine obs_dim from environment
-    obs, _ = env.get_observations()
-    obs_dim = obs.shape[-1]
+    obs = env.get_observations()
+    # obs is a TensorDict; policy expects it directly
+    # Extract raw obs tensor for history buffer
+    obs_tensor = obs["policy"] if "policy" in obs.keys() else list(obs.values())[0]
+    obs_dim = obs_tensor.shape[-1]
     num_envs = args_cli.num_envs
     history_length = args_cli.history_length
     total_steps = args_cli.num_steps
@@ -89,9 +105,12 @@ def main():
     collected = 0
 
     for step in range(steps_per_env):
+        # Extract obs tensor for history buffer
+        obs_tensor = obs["policy"] if "policy" in obs.keys() else list(obs.values())[0]
+
         # Update history buffer (shift left, append current obs)
         obs_history_buf = torch.roll(obs_history_buf, shifts=-1, dims=1)
-        obs_history_buf[:, -1, :] = obs
+        obs_history_buf[:, -1, :] = obs_tensor
 
         # Get deterministic teacher action (use mean, no sampling)
         with torch.no_grad():
@@ -100,7 +119,7 @@ def main():
         # Store data (skip first history_length steps to fill buffer)
         if step >= history_length:
             all_obs_history.append(obs_history_buf.reshape(num_envs, -1).cpu().numpy())
-            all_obs_current.append(obs.cpu().numpy())
+            all_obs_current.append(obs_tensor.cpu().numpy())
             all_actions.append(actions.cpu().numpy())
             collected += num_envs
 
@@ -111,7 +130,7 @@ def main():
             break
 
         # Step environment
-        obs, _, _, _, _ = env.step(actions)
+        obs, _, _, _ = env.step(actions)
 
     # Save
     output_path = args_cli.output or os.path.join(

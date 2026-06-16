@@ -3,6 +3,10 @@
 Collects (obs_history, obs_current, teacher_action) dataset from trained teacher,
 then trains Student policy via supervised BC.
 
+Note: Current teacher actor does NOT use privileged obs, so direct ONNX export
+(export_onnx.py) is preferred. This script exists for future use when teacher
+is retrained with privileged actor input.
+
 Usage:
     python applications/go2_locomotion/train_student.py
 """
@@ -48,13 +52,11 @@ def collect_teacher_data(teacher_path: str, dataset_size: int, cfg: dict):
         history = np.roll(history, -1, axis=0)
         history[-1] = obs
 
-        priv = dr._get_privileged_info()
         obs_t = torch.FloatTensor(obs).unsqueeze(0).to(trainer.device)
-        priv_t = torch.FloatTensor(priv).unsqueeze(0).to(trainer.device)
 
         with torch.no_grad():
             mean, _ = trainer.network.forward_actor(obs_t)
-            action = mean.cpu().numpy().flatten()
+            action = np.clip(mean.cpu().numpy().flatten(), -1.0, 1.0)
 
         obs_history_data.append(history.flatten().copy())
         obs_current_data.append(obs.copy())
@@ -69,7 +71,7 @@ def collect_teacher_data(teacher_path: str, dataset_size: int, cfg: dict):
 
         if terminated or truncated:
             obs, _ = env.reset()
-            priv = dr.randomize()
+            dr.randomize()
             env.kp = cfg["kp"] * dr.get_kp_scale()
             env.kd = cfg["kd"] * dr.get_kd_scale()
             history = np.zeros((history_length, obs_dim), dtype=np.float32)
@@ -126,7 +128,6 @@ def train_student(cfg=None):
     no_improve = 0
 
     for epoch in range(n_epochs):
-        # Training
         indices = np.random.permutation(n_train)
         epoch_losses = []
         for start in range(0, n_train, batch_size):
@@ -137,8 +138,6 @@ def train_student(cfg=None):
         train_avg = float(np.mean(epoch_losses))
         train_loss_history.append(train_avg)
 
-        # Validation (no grad)
-        import torch
         with torch.no_grad():
             val_losses = []
             for start in range(0, n_val, batch_size):
@@ -156,11 +155,10 @@ def train_student(cfg=None):
         if (epoch + 1) % 10 == 0:
             print(f"  Epoch {epoch + 1}/{n_epochs} | Train: {train_avg:.6f}  Val: {val_avg:.6f}")
 
-        # Early stopping
         if val_avg < best_val_loss:
             best_val_loss = val_avg
             no_improve = 0
-            student.save(str(results_dir / "student_final.pth"))  # save best
+            student.save(str(results_dir / "student_final.pth"))
         else:
             no_improve += 1
             if no_improve >= patience:

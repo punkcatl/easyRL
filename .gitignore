@@ -9,6 +9,7 @@ build/
 *.pth
 results/
 !experiments/results/.gitkeep
+!applications/go2_locomotion/results/policy_go2.onnx
 .ipynb_checkpoints/
 *.log
 runs/

@@ -441,3 +441,183 @@ Reward
 2. 权重太重会杀死行为（R2 教训）
 3. gait_schedule 需要足够强的权重（0.5 不够，1.0 才能建立步态）
 4. 延长训练不如调参有效（R6 vs R7）
+
+---
+
+## Round 8
+
+**目标：** 改善步态自然度（减少外八字、减少抖动、减少脚底滑动）
+
+**诊断 Round 7 问题（数据驱动）：**
+- `action_rate_l2` = -0.475（raw=47.5）→ **最大问题：动作极其抖动，步态不平滑**
+- `feet_slide` = -0.034（raw=0.34）→ 脚底仍有滑动
+- `joint_deviation_arms` = -0.089（raw=0.89）→ 手臂不够安静
+- `joint_deviation_hip` = -0.084（raw=0.168）→ **已受控，不是问题**（外八字已在 R5 解决）
+
+**配置变更（相对 Round 7）：**
+```
+改动:
+  action_rate_l2: -0.01 → -0.03（主攻目标：3 倍惩罚减少动作抖动）
+  dof_acc_l2: -1e-7 → -2.5e-7（辅助平滑：减少关节加速度抖动）
+  feet_slide: -0.1 → -0.2（减少脚底滑动）
+  joint_deviation_arms: -0.1 → -0.2（手臂更安静）
+  joint_deviation_hip: 保持 -0.5（数据证明已够用，不加强）
+
+其余不变
+```
+
+**动机：** 数据分析表明外八字已不是问题（hip raw=0.168 很小），**主因是 action_rate raw=47.5 极高导致步态不平滑**。主攻平滑性（3x action_rate + 2.5x dof_acc），辅修脚滑和手臂。遵循最小变量法 + 渐进惩罚原则。
+
+**TensorBoard:** `results/g1_flat_locomotion/2026-06-16_13-37-07/` (R8a: -0.03, too heavy)
+**TensorBoard:** `results/g1_flat_locomotion/2026-06-16_14-10-36/` (R8b: -0.02, best balance)
+
+**R8a Results (action_rate=-0.03, 过重):**
+
+| 指标 | R7 | R8a | 变化 |
+|------|----|----|------|
+| Reward | 69.4 | 57.6 | -17% (penalty too heavy) |
+| 速度 | 0.48 m/s | 0.41 m/s | 速度大幅下降 |
+| action_rate raw | 47.5 | 23.3 | -51% 平滑了 |
+| ep_len | 991 | 966 | 开始摔倒 |
+
+**结论：** -0.03 太重，牺牲速度和稳定性。改用 -0.02 重试。
+
+---
+
+**R8b Results (action_rate=-0.02, 最佳平衡):**
+
+| 指标 | R7 | R8b | 变化 |
+|------|----|----|------|
+| Reward | 69.4 | **64.6** | -7% (可接受) |
+| 速度 | 0.48 m/s | **0.50 m/s** | 完美跟踪 0.5 命令 |
+| 高度 | 0.72m | **0.733m** | 最接近 0.74 目标 |
+| clearance | 0.96 | **0.96** | 保持 |
+| **gait_schedule** | 0.95 | **1.02** | 满分！ |
+| **action_rate raw** | 47.5 | **29.9** | **-37% 显著更平滑** |
+| feet_slide raw | 0.34 | **0.29** | -15% 脚滑减少 |
+| hip_deviation | -0.084 | -0.088 | 稳定 |
+| arms_deviation | -0.089 | -0.141 | 加强约束中 |
+| ep_len | 991 | **995** | 几乎不摔 |
+| vel_tracking | 1.82 | 1.79 | 保持 |
+
+**当前最优 checkpoint：** `results/g1_flat_locomotion/2026-06-16_14-10-36/teacher_final.pt`
+
+**Round 8 总结：**
+- action_rate -0.02 是最佳折中点（-0.03 太重杀速度，-0.01 太轻不平滑）
+- 动作平滑度提升 37%（raw 47.5→29.9）
+- 速度完美跟踪（0.50 m/s = 100% 指令跟踪）
+- gait 满分（1.02）
+- 身体高度显著改善（0.72→0.733，接近 0.74 目标）
+- 外八字确认已不是问题（保持 -0.5 够用）
+
+**下一步：** Domain Randomization + Rough Terrain
+
+---
+
+## Round 9
+
+**目标：** 加入 Domain Randomization，提升策略对物理参数变化的鲁棒性（sim-to-real）
+
+**配置变更（相对 Round 8b，reward 不变，只加 DR）：**
+```
+新增/修改 events:
+  physics_material: static_friction (0.4, 1.2), dynamic_friction (0.3, 1.0)
+    原值: (0.8, 0.8) 固定 → 宽范围覆盖冰面到橡胶
+  push_robot: velocity_range ±1.0 m/s
+    原值: ±0.5 m/s → 更强推扰
+  base_external_force_torque: force ±50N, torque ±5Nm
+    原值: (0, 0) → 持续外力干扰
+  新增 randomize_actuator: scale kp/kd by (0.8, 1.2)
+    模拟电机老化/个体差异
+
+reward 配置完全不变（保持 Round 8b 的最优设置）
+```
+
+**动机：** Round 8b 在固定物理参数下已达优秀水平。加 DR 是 sim-to-real 必经之路。保持 reward 不变，只加环境随机化，观察策略是否仍能学到好步态。预期 reward 会下降（更难的环境），但策略更鲁棒。
+
+**实验过程：**
+
+**R9a (strong DR, 1500 iter):** `results/g1_flat_locomotion/2026-06-16_15-01-29/`
+- friction (0.4,1.2), push ±1.0, force ±50N, mass ±3kg, actuator ±20%
+- reward=5.8, ep_len=822, vel_tracking=0.90 → **DR 太强，策略没收敛**
+
+**R9b (strong DR, 3000 iter):** `results/g1_flat_locomotion/2026-06-16_15-35-41/`
+- 同 R9a 配置，延长训练
+- reward=13.8, ep_len=938 → 改善但仍然很差
+- 干净环境测试: speed=0.25 m/s → **策略学了过于保守的行为**
+
+**R9c (moderate DR, 3000 iter):** `results/g1_flat_locomotion/2026-06-16_16-43-09/`
+- friction (0.6,1.0), push ±0.5, force ±20N, mass ±2kg, actuator ±10%
+
+| 指标 | R8b (no DR) | R9c (moderate DR) | 变化 |
+|------|-------------|-------------------|------|
+| Reward | 64.6 | **55.9** | -13% (环境更难的代价) |
+| 速度跟踪 | 1.79 | **1.68** | -6% |
+| gait | 1.02 | **1.02** | 保持满分 |
+| clearance | 0.96 | **0.94** | 保持 |
+| ep_len | 995 | **971** | 偶尔摔 |
+| hip | -0.088 | **-0.085** | 稳定 |
+| **干净环境速度** | 0.50 | **0.49 m/s** | 几乎一样！ |
+| **干净环境高度** | 0.733 | **0.713m** | 略低 |
+
+**当前最优 checkpoint：** `results/g1_flat_locomotion/2026-06-16_16-43-09/teacher_final.pt`
+
+**Round 9 总结：**
+- DR 强度需要渐进：(0.4,1.2)摩擦 + ±1.0推力太强 → 策略学保守蹲低
+- 适度DR (0.6,1.0)摩擦 + ±0.5推力 + ±20N外力 → 性能只损失 ~10%，但鲁棒性提升
+- 3000 iter 对 DR 环境是必要的（DR 增加了收敛难度）
+- 关键指标：干净环境部署性能 0.49 m/s，几乎无损
+
+**下一步：** Rough Terrain
+
+---
+
+## Round 10
+
+**目标：** Rough Terrain + DR（在复杂地形上行走）
+
+**配置：**
+```
+task: G1-Rough-Custom-v0
+terrain: ROUGH_TERRAINS_CFG（楼梯/斜坡/随机凸起/boxes）
+  + height_scanner (obs 中包含地形高度图)
+rewards: 完全复用 R8b 的 reward 配置
+DR: 完全复用 R9c 的 moderate DR
+max_iterations: 3000
+network: [512, 256, 128]（更大，处理 height scan 输入）
+```
+
+**动机：** R9c 证明 moderate DR 可以在平地上保持好步态。现在加入 rough terrain，这会改变 obs space（多了 height scan），所以用更大网络。本质上是"在复杂地形上复现 R9c 的成功"。
+
+**实验过程：**
+
+**R10a (strict penalties, 3000 iter):** `results/g1_rough_locomotion/2026-06-16_17-56-06/`
+- base_height target=0.74m, weight=-5.0; action_rate=-0.02
+- reward=-4.4, ep_len=893, vel=1.08, gait=0.92, clearance=0.56
+- **问题：** reward 负（base_height -0.25 太重，rough 地形必须弯膝盖）
+
+**R10b (relaxed, 3000 iter):** `results/g1_rough_locomotion/2026-06-16_19-18-38/`
+- base_height target=0.68m(-2.0); action_rate=-0.01（适应 rough 需要）
+
+| 指标 | R10a | **R10b** | 变化 |
+|------|------|----------|------|
+| Reward | -4.4 | **+13.1** | 从负到正 |
+| 速度跟踪 | 1.08 | **1.26** | +17% |
+| gait | 0.92 | **0.96** | 优秀 |
+| clearance | 0.56 | **0.60** | 略升 |
+| ep_len | 893 | **962** | 几乎不摔 |
+| base_height | -0.25 | **-0.15** | 减半 |
+| termination | -0.037 | **-0.016** | 更少摔倒 |
+
+**Rough Terrain 位移测试（PLAY 环境）：**
+- Speed: 0.36 m/s（命令 0.5 的 72%）
+- Survived: 3/4
+- 在楼梯/斜坡/随机凸起地形上能行走
+
+**当前最优 checkpoint：** `results/g1_rough_locomotion/2026-06-16_19-18-38/teacher_final.pt`
+
+**Round 10 总结：**
+- Rough terrain 上 base_height target 要降低（0.74→0.68），因为地形需要弯膝盖
+- action_rate 也要放松（-0.02→-0.01），rough 需要更大动作幅度
+- 3000 iter 下策略能在 rough terrain 存活(962/1000)且有步态(0.96)
+- 速度跟踪 72% — 可接受，rough 地形上不需要和平地一样快

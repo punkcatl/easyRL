@@ -111,6 +111,19 @@ def base_height_reward(
     return torch.exp(-error / (sigma**2))
 
 
+def feet_symmetry_height(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Penalize asymmetric foot heights — left and right should lift similarly."""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    foot_heights = asset.data.body_pos_w[:, asset_cfg.body_ids, 2]
+    left_h = foot_heights[:, 0]
+    right_h = foot_heights[:, 1]
+    asymmetry = torch.square(left_h - right_h)
+    return asymmetry
+
+
 def forward_progress(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),

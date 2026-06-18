@@ -102,10 +102,9 @@ def make_go2_flat_env_cfg(num_envs: int = 1024, play: bool = False) -> ManagerBa
         ),
     }
 
-    # Rewards — simplified, following mjlab Go1 proven pattern
-    # Velocity tracking dominates, minimal penalties
+    # Rewards — R10: velocity tracking + gait shaping + stability
     rewards = {
-        # Primary: velocity tracking (weight 2.0 each — same as Go1)
+        # Velocity tracking (dominant signal)
         "track_linear_velocity": RewardTermCfg(
             func=mdp.track_linear_velocity,
             weight=2.0,
@@ -113,8 +112,30 @@ def make_go2_flat_env_cfg(num_envs: int = 1024, play: bool = False) -> ManagerBa
         ),
         "track_angular_velocity": RewardTermCfg(
             func=mdp.track_angular_velocity,
-            weight=2.0,
+            weight=3.0,
             params={"command_name": "twist", "std": math.sqrt(0.25)},
+        ),
+        # Gait shaping (balanced — maintain trot without killing velocity tracking)
+        "feet_air_time": RewardTermCfg(
+            func=local_rewards.feet_air_time,
+            weight=1.0,
+            params={
+                "sensor_name": "feet_ground_contact",
+                "threshold": 0.05,
+                "threshold_max": 0.5,
+                "command_name": "twist",
+                "command_threshold": 0.3,
+            },
+        ),
+        "gait_symmetry": RewardTermCfg(
+            func=local_rewards.gait_symmetry_reward,
+            weight=0.5,
+            params={"sensor_name": "feet_ground_contact"},
+        ),
+        "all_feet_contact_penalty": RewardTermCfg(
+            func=local_rewards.all_feet_contact,
+            weight=-1.0,
+            params={"sensor_name": "feet_ground_contact"},
         ),
         # Stability
         "upright": RewardTermCfg(
@@ -126,7 +147,7 @@ def make_go2_flat_env_cfg(num_envs: int = 1024, play: bool = False) -> ManagerBa
             weight=0.5,
             params={"target": 0.34, "sigma": 0.05},
         ),
-        # Penalties (light — don't overwhelm tracking signal)
+        # Penalties
         "termination_penalty": RewardTermCfg(
             func=mdp.is_terminated,
             weight=-10.0,
@@ -135,7 +156,11 @@ def make_go2_flat_env_cfg(num_envs: int = 1024, play: bool = False) -> ManagerBa
         "dof_pos_limits": RewardTermCfg(func=mdp.joint_pos_limits, weight=-1.0),
         "lin_vel_z": RewardTermCfg(
             func=local_rewards.lin_vel_z_l2,
-            weight=-0.2,
+            weight=-0.3,
+        ),
+        "ang_vel_xy": RewardTermCfg(
+            func=local_rewards.ang_vel_xy_l2,
+            weight=-0.05,
         ),
     }
 
@@ -172,16 +197,15 @@ def make_go2_flat_env_cfg(num_envs: int = 1024, play: bool = False) -> ManagerBa
                 "asset_cfg": SceneEntityCfg("robot", joint_names=(".*",)),
             },
         ),
-        # push_robot disabled for initial training — enable after robot learns to walk
-        # "push_robot": EventTermCfg(
-        #     func=mdp.push_by_setting_velocity,
-        #     mode="interval",
-        #     interval_range_s=(5.0, 10.0),
-        #     params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
-        # ),
+        "push_robot": EventTermCfg(
+            func=mdp.push_by_setting_velocity,
+            mode="interval",
+            interval_range_s=(5.0, 10.0),
+            params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
+        ),
     }
 
-    # Commands — wider range than before to give more signal
+    # Commands — full velocity range
     commands: dict[str, CommandTermCfg] = {
         "twist": UniformVelocityCommandCfg(
             entity_name="robot",
@@ -189,9 +213,9 @@ def make_go2_flat_env_cfg(num_envs: int = 1024, play: bool = False) -> ManagerBa
             rel_standing_envs=0.1,
             resampling_time_range=(3.0, 8.0),
             ranges=UniformVelocityCommandCfg.Ranges(
-                lin_vel_x=(-0.5, 1.0),
-                lin_vel_y=(-0.3, 0.3),
-                ang_vel_z=(-0.5, 0.5),
+                lin_vel_x=(-1.0, 2.0),
+                lin_vel_y=(-0.5, 0.5),
+                ang_vel_z=(-1.0, 1.0),
             ),
         ),
     }

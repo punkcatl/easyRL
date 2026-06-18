@@ -51,15 +51,26 @@ def forward_velocity(
 def feet_air_time(
     env: ManagerBasedRlEnv,
     sensor_name: str,
-    threshold: float,
+    threshold: float = 0.1,
+    threshold_max: float = 0.5,
+    command_name: str = "twist",
+    command_threshold: float = 0.5,
 ) -> torch.Tensor:
-    """Reward feet spending time in the air (above threshold). Triggered on landing."""
+    """Reward feet whose current air time is in [threshold, threshold_max].
+
+    Continuous signal (every step), not sparse (only on landing).
+    Scaled by command magnitude — no reward when standing still.
+    """
     sensor = env.scene[sensor_name]
     air_time = sensor.data.current_air_time  # [B, 4]
-    contact = sensor.data.found      # [B, 4] bool — currently in contact
-    first_contact = (contact > 0.5) & (air_time > 0)
-    reward_per_foot = torch.clamp(air_time - threshold, min=0.0) * first_contact.float()
-    return reward_per_foot.sum(dim=1)
+    in_range = (air_time > threshold) & (air_time < threshold_max)
+    reward = in_range.float().sum(dim=1)  # count feet in good air time range
+
+    # Scale by command — only reward when actually moving
+    command = env.command_manager.get_command(command_name)
+    cmd_norm = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+    scale = (cmd_norm > command_threshold).float()
+    return reward * scale
 
 
 class gait_schedule_reward:

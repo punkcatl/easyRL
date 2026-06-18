@@ -82,7 +82,130 @@ mujoco_menagerie 的 Go2 MJCF 在 `<default class="go2">` 里有：
 
 ---
 
-## 下一步 (R10+)
+---
+
+## Round 10 — Gait shaping + DR + Full command range
+
+**日期**: 2026-06-18  
+**配置变更** (从 R9 checkpoint resume):
+- 加 gait rewards: feet_air_time(0.5), gait_symmetry(0.3), all_feet_contact_penalty(-0.5)
+- 加 ang_vel_xy penalty (-0.05)
+- 增大 lin_vel_z penalty: -0.2 → -0.3
+- 启用 push_robot event (interval 5-10s, vel +-0.5)
+- 扩展 command range: lin_vel_x [-1.0, 2.0], lin_vel_y [-0.5, 0.5], ang_vel_z [-1.0, 1.0]
+- Resume from results_r9/model_3000.pt
+- max_iterations: 5000
+
+**结果** (5000 iter):
+- reward: 81.51
+- track_lin_vel: 1.87 (94%, range [-1, 2] m/s)
+- track_ang_vel: 1.54 (77%, range [-1, 1] rad/s)
+- gait_symmetry: 0.28 (学到了对称步态)
+- fell_over: 0.0 (push 鲁棒)
+- **feet_air_time: 0.0** (没抬脚 — weight 太低)
+
+**分析**: velocity tracking 在大范围下仍好，push 抗扰好。但 robot "拖着走"而不是"迈步走"。feet_air_time weight=0.5 相对 vel_tracking=2.0 太弱。
+
+---
+
+## Round 11 — Force stepping gait
+
+**日期**: 2026-06-18  
+**配置变更** (从 R10 checkpoint resume):
+- 大幅增加 feet_air_time weight: 0.5 → 2.0
+- 增加 gait_symmetry weight: 0.3 → 0.5
+- 增加 all_feet_contact_penalty: -0.5 → -2.0
+- Resume from results_r10/model_5000.pt (如果存在) 或 model_4500.pt
+
+**关键修复**: `feet_air_time` reward 改为持续信号版本（每步检查 air_time 是否在 [0.05, 0.5] 范围）
+  - 原版本只在 landing 时刻给 reward（太稀疏，robot 永远学不到）
+  - 新版本参照 mjlab 内置实现：count feet in good air time range per step
+  - 加了 command scaling：站着不动时不给 air_time reward
+
+**目标**: 强制 robot 抬脚，形成 trot 步态
+
+---
+
+**结果** (5000 iter):
+- reward: 113.08
+- track_lin_vel: 1.28 (64%) — 降了（步态转换代价）
+- track_ang_vel: 0.04 (2%) — 崩了（不会转弯）
+- feet_air_time: 5.49 — 成功抬脚！
+- gait_symmetry: 0.36
+- fell_over: 0.05
+
+**分析**: feet_air_time weight=2.0 过强，压制了 angular velocity tracking。需要平衡。
+
+---
+
+## Round 12 — Balance gait vs velocity
+
+**日期**: 2026-06-18  
+**配置变更** (从 R11 checkpoint resume):
+- 降低 feet_air_time weight: 2.0 → 1.0
+- 降低 all_feet_contact_penalty: -2.0 → -1.0
+- 目标: 保持抬脚的同时恢复 velocity tracking（尤其是转弯）
+
+---
+
+**结果** (5000 iter):
+- reward: 87.85
+- track_lin_vel: 1.49 (75%) — 恢复了
+- track_ang_vel: 0.32 (16%) — 还是低（继承了 R11 忘了转弯的 checkpoint）
+- feet_air_time: 2.64 — 保持抬脚
+- gait_symmetry: 0.37
+- fell_over: 0.05
+
+**分析**: 平衡 ok，但 ang_vel 恢复太慢。R11 的 checkpoint 已经"忘了转弯"，继续 resume 无法快速恢复。
+
+---
+
+## Round 13 — Fresh start with balanced rewards
+
+**日期**: 2026-06-18  
+**配置变更**: 用 R12 的 reward config，但从 **R9 checkpoint** 重新训练（R9 时转弯 90%）
+- Resume from results_r9/model_3000.pt（转弯能力完整的 checkpoint）
+- 保持 R12 的平衡 reward weights
+- max_iterations: 8000（给足时间同时学走路+步态+转弯）
+
+---
+
+**结果** (2000 iter):
+- reward: 95.39
+- track_lin_vel: 1.48 (74%)
+- track_ang_vel: 0.57 (29%) — 比 R12 好但仍不够
+- feet_air_time: 2.49 — 保持
+- fell_over: 0.0
+
+**分析**: 从 R9 重新训比续训 R11/R12 好很多。但 ang_vel 只到 29%，续训 1000 iter 反而退化。需要提高 ang_vel weight。
+
+---
+
+## Round 14 — Boost angular velocity tracking
+
+**日期**: 2026-06-18  
+**配置变更** (从 R9 checkpoint):
+- 提高 track_angular_velocity weight: 2.0 → 3.0
+- 其余同 R13 (feet_air_time=1.0, all_feet_contact=-1.0, gait_symmetry=0.5)
+- Resume from results_r9/model_3000.pt
+- max_iterations: 2000
+
+**结果** (2000 iter):
+- reward: **120.53**
+- track_lin_vel: **1.58 (79%)**
+- track_ang_vel: **1.72 (57%)** — 从 R13 的 19% 提升到 57%!
+- feet_air_time: **2.16** — 保持抬脚
+- gait_symmetry: **0.42**
+- fell_over: **0.0** — 完全稳定
+- throughput: 94K steps/sec
+
+**综合评价**: 全面达标。前进+转弯+步态+稳定性都好。可以进入 distillation。
+
+---
+
+## 下一步
+
+- Student distillation (Phase 2-4): 用 R14 checkpoint 采集数据 → 训练 Student → ONNX 导出
 
 | Round | 目标 | 内容 |
 |-------|------|------|

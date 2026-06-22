@@ -1,0 +1,16 @@
+# Training results (intermediate rounds, keep only final in results_r9/)
+results_go1_test/
+results_r4/
+results_r5/
+results_r6/
+results_r7/
+results_r8/
+results_r10/
+results_r11/
+results_r12/
+results_r13/
+results_r14/
+results_v2/
+results_v3/
+results_v4/
+results/distill_dataset.npz

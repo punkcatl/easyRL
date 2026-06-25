@@ -1,0 +1,20 @@
+# Training results (large model files)
+results*/model_*.pt
+results*/events.out.tfevents.*
+results*/*.npz
+results*/*.onnx
+
+# Keep final deployment models
+!results_r17/model_2998.pt
+!results/student_dr_final.pt
+!results/student_dr_policy.onnx
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
